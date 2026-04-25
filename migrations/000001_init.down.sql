@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS conversation_sessions;
+DROP TABLE IF EXISTS issue_repeats;
+DROP TABLE IF EXISTS issues;
+DROP TABLE IF EXISTS invites;
+DROP TABLE IF EXISTS pair_members;
+DROP TABLE IF EXISTS pairs;
+DROP TABLE IF EXISTS users;
+
