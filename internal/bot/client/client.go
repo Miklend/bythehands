@@ -216,6 +216,22 @@ func (c *Client) GetIssue(ctx context.Context, issueID string) (Issue, error) {
 	return env.Data, nil
 }
 
+type UpdateIssueRequest struct {
+	Title           *string `json:"title,omitempty"`
+	RepeatThreshold *int    `json:"repeat_threshold,omitempty"`
+}
+
+func (c *Client) UpdateIssue(ctx context.Context, issueID string, req UpdateIssueRequest) (Issue, error) {
+	var env Envelope[Issue]
+	if err := c.patch(ctx, "/api/v1/issues/"+issueID, req, &env); err != nil {
+		return Issue{}, err
+	}
+	if env.Error != nil {
+		return Issue{}, fmt.Errorf("api error: %s: %s", env.Error.Code, env.Error.Message)
+	}
+	return env.Data, nil
+}
+
 func (c *Client) RepeatIssue(ctx context.Context, issueID, userID string, note string) (Issue, error) {
 	var env Envelope[Issue]
 	body := map[string]any{"user_id": userID, "note": note}
@@ -332,9 +348,12 @@ func (c *Client) ResumeConversation(ctx context.Context, conversationID string) 
 }
 
 type FinishConversationRequest struct {
-	ResultStatus string  `json:"result_status"`
-	ResultText   *string `json:"result_text"`
-	EndState     *string `json:"end_state"`
+	ResultStatus  string  `json:"result_status"`
+	ResultText    *string `json:"result_text"`
+	EndState      *string `json:"end_state"`
+	EndedEarly    bool    `json:"ended_early,omitempty"`
+	EndedByUserID *string `json:"ended_by_user_id,omitempty"`
+	EndReason     *string `json:"end_reason,omitempty"`
 }
 
 func (c *Client) FinishConversation(ctx context.Context, conversationID string, req FinishConversationRequest) (ConversationSession, error) {

@@ -121,14 +121,19 @@ func (a *App) handleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
 	data := strings.TrimSpace(q.Data)
 	switch {
 	case data == "settings:rules":
-		a.editOrSend(chatID, messageID, "Правила использования TalkaBot:\n\n1. Бот не определяет, кто прав.\n2. Бот не заменяет разговор.\n3. Бот не нужен для наказания партнера.\n4. Повторения — это фиксация восприятия и фактов, а не приговор.\n5. Несогласие обсуждается в фокусе разговора.\n6. В боте не устраиваем спор.", backMenuKeyboard())
+		text := "Правила использования TalkaBot:\n\n1. Бот не определяет, кто прав.\n2. Бот не заменяет разговор.\n3. Бот не нужен для наказания партнера.\n4. Повторения — это фиксация восприятия и фактов, а не приговор.\n5. Несогласие обсуждается в фокусе разговора.\n6. В боте не устраиваем спор."
+		kb := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbNavSettings)),
+			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("В меню", cbMenu)),
+		)
+		a.editOrSend(chatID, messageID, text, &kb)
 	case data == "settings:pair":
 		a.showPairSpaces(ctx, sess, chatID, messageID)
 	case data == cbSettingsShare:
 		a.sharePairLink(ctx, sess, chatID, messageID)
 	case data == cbPairWelcome:
 		sess.State = StatePairWelcome
-		a.editOrSend(chatID, messageID, "Текст приветствия для партнера (появится после подключения):", backKeyboard("settings:pair"))
+		a.editOrSend(chatID, messageID, "Текст приветствия для партнера (появится после подключения):", backKeyboard(cbSettingsShare))
 	case strings.HasPrefix(data, "issue:prio:"):
 		val := strings.TrimPrefix(data, "issue:prio:")
 		sess.AddIssuePriority = val
@@ -288,6 +293,19 @@ func (a *App) handleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
 			return
 		}
 		a.editOrSend(chatID, messageID, "Тема удалена.", backToMenuKeyboard())
+	case strings.HasPrefix(data, cbIssueSettingsPrefix):
+		issueID := strings.TrimPrefix(data, cbIssueSettingsPrefix)
+		a.showIssueSettings(ctx, sess, chatID, messageID, issueID)
+	case strings.HasPrefix(data, cbIssueRenamePrefix):
+		issueID := strings.TrimPrefix(data, cbIssueRenamePrefix)
+		sess.State = StateIssueRename
+		sess.CurrentIssueID = issueID
+		a.editOrSend(chatID, messageID, "Новое название темы:", backKeyboard(cbIssueSettingsPrefix+issueID))
+	case strings.HasPrefix(data, cbIssueRepeatLimitPrefix):
+		issueID := strings.TrimPrefix(data, cbIssueRepeatLimitPrefix)
+		sess.State = StateIssueRepeatLimit
+		sess.CurrentIssueID = issueID
+		a.editOrSend(chatID, messageID, "Новый лимит повторений (число):", backKeyboard(cbIssueSettingsPrefix+issueID))
 	case strings.HasPrefix(data, cbFocusStartPrefix):
 		issueID := strings.TrimPrefix(data, cbFocusStartPrefix)
 		a.startFocusForIssue(ctx, sess, chatID, messageID, issueID)
@@ -309,6 +327,16 @@ func (a *App) handleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
 	case data == cbFocusBackToSelfState:
 		sess.State = StateFocusStartStateSelf
 		a.editOrSend(chatID, messageID, "Состояние перед разговором.\n\nТвое состояние:", stateKeyboard(cbFocusStartStateSelfPrefix, "focus:back_questions"))
+	case data == cbFocusBackToSelect:
+		sess.FocusIssueID = ""
+		sess.FocusGoal = ""
+		sess.FocusQuestions = ""
+		sess.FocusStartStateSelf = ""
+		sess.FocusStartStatePartner = ""
+		a.startFocusFromCommand(ctx, sess, chatID, messageID)
+	case data == cbFocusBackToPartnerState:
+		sess.State = StateFocusStartStatePartner
+		a.editOrSend(chatID, messageID, "Состояние перед разговором.\n\nСостояние партнера:", stateKeyboard(cbFocusStartStatePartnerPrefix, cbFocusBackToSelfState))
 	case strings.HasPrefix(data, cbConvPausePrefix):
 		id := strings.TrimPrefix(data, cbConvPausePrefix)
 		a.pauseConversation(ctx, sess, chatID, messageID, id)
@@ -330,6 +358,36 @@ func (a *App) handleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
 		sess.State = StateFinishStatus
 		sess.ConversationID = id
 		a.editOrSend(chatID, messageID, "Какой итог?", finishStatusKeyboard())
+	case strings.HasPrefix(data, cbConvEarlyPrefix):
+		id := strings.TrimPrefix(data, cbConvEarlyPrefix)
+		sess.State = StateIdle
+		sess.ConversationID = id
+		kb := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Нет времени", cbConvEarlyReason+"no_time"),
+				tgbotapi.NewInlineKeyboardButtonData("Нужна пауза", cbConvEarlyReason+"need_break"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Слишком эмоционально", cbConvEarlyReason+"too_emotional"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Другое…", cbConvEarlyReason+"other"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Назад", cbConvBackToActive),
+			),
+		)
+		a.editOrSend(chatID, messageID, "Досрочное завершение.\n\nПочему завершаем?", &kb)
+	case strings.HasPrefix(data, cbConvEarlyReason):
+		code := strings.TrimPrefix(data, cbConvEarlyReason)
+		switch code {
+		case "other":
+			sess.State = StateConvEarlyOther
+			a.editOrSend(chatID, messageID, "Почему? Напиши одним сообщением.", backKeyboard(cbConvBackToActive))
+		default:
+			sess.EarlyEndReason = code
+			a.finishConversationEarly(ctx, sess, chatID, messageID)
+		}
 	case strings.HasPrefix(data, cbFinishStatusPrefix):
 		val := strings.TrimPrefix(data, cbFinishStatusPrefix)
 		sess.FinishResultStatus = val

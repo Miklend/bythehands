@@ -82,6 +82,30 @@ func (h *IssuesHandler) GetIssue(w http.ResponseWriter, r *http.Request) {
 	})(w, r)
 }
 
+type updateIssueRequest struct {
+	Title           *string `json:"title"`
+	RepeatThreshold *int    `json:"repeat_threshold"`
+}
+
+func (h *IssuesHandler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
+	Wrap(h.log, h.mapE, func(w http.ResponseWriter, r *http.Request) error {
+		issueID := chi.URLParam(r, "issue_id")
+		var req updateIssueRequest
+		if err := DecodeJSON(r, &req); err != nil {
+			return &service.Error{Kind: service.KindValidation, Message: "invalid json", Err: err}
+		}
+		it, err := h.svc.UpdateIssue(r.Context(), issueID, service.UpdateIssueInput{
+			Title:           req.Title,
+			RepeatThreshold: req.RepeatThreshold,
+		})
+		if err != nil {
+			return err
+		}
+		WriteJSON(w, http.StatusOK, Envelope{Data: it})
+		return nil
+	})(w, r)
+}
+
 type repeatIssueRequest struct {
 	UserID string  `json:"user_id"`
 	Note   *string `json:"note"`

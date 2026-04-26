@@ -50,9 +50,12 @@ func (h *ConversationsHandler) StartConversation(w http.ResponseWriter, r *http.
 }
 
 type finishConversationRequest struct {
-	ResultStatus conversation.ResultStatus `json:"result_status"`
-	ResultText   *string                   `json:"result_text"`
-	EndState     *string                   `json:"end_state"`
+	ResultStatus  conversation.ResultStatus `json:"result_status"`
+	ResultText    *string                   `json:"result_text"`
+	EndState      *string                   `json:"end_state"`
+	EndedEarly    bool                      `json:"ended_early"`
+	EndedByUserID *string                   `json:"ended_by_user_id"`
+	EndReason     *string                   `json:"end_reason"`
 }
 
 func (h *ConversationsHandler) FinishConversation(w http.ResponseWriter, r *http.Request) {
@@ -63,9 +66,12 @@ func (h *ConversationsHandler) FinishConversation(w http.ResponseWriter, r *http
 			return &service.Error{Kind: service.KindValidation, Message: "invalid json", Err: err}
 		}
 		sess, err := h.svc.Finish(r.Context(), id, service.FinishConversationInput{
-			ResultStatus: req.ResultStatus,
-			ResultText:   req.ResultText,
-			EndState:     req.EndState,
+			ResultStatus:  req.ResultStatus,
+			ResultText:    req.ResultText,
+			EndState:      req.EndState,
+			EndedEarly:    req.EndedEarly,
+			EndedByUserID: req.EndedByUserID,
+			EndReason:     req.EndReason,
 		})
 		if err != nil {
 			return err

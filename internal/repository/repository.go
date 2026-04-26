@@ -44,6 +44,7 @@ type IssueRepository interface {
 	GetRepeat(ctx context.Context, repeatID string) (issue.IssueRepeat, error)
 	CreateRepeatDisagreement(ctx context.Context, repeatID, userID string, note string) (issue.IssueRepeatDisagreement, error)
 	GetRepeatDisagreement(ctx context.Context, repeatID, userID string) (issue.IssueRepeatDisagreement, error)
+	UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int) (issue.Issue, error)
 	UpdateStatus(ctx context.Context, issueID string, status issue.Status) (issue.Issue, error)
 	DeleteIssue(ctx context.Context, issueID string) error
 	DeleteRepeat(ctx context.Context, repeatID string) error
@@ -51,7 +52,7 @@ type IssueRepository interface {
 
 type ConversationRepository interface {
 	StartSession(ctx context.Context, in conversation.Session) (conversation.Session, error)
-	FinishSession(ctx context.Context, id string, resultStatus conversation.ResultStatus, resultText *string, endState *string, finishedAt time.Time) (conversation.Session, error)
+	FinishSession(ctx context.Context, id string, resultStatus conversation.ResultStatus, resultText *string, endState *string, finishedAt time.Time, endedEarly bool, endedByUserID *string, endReason *string) (conversation.Session, error)
 	GetSession(ctx context.Context, id string) (conversation.Session, error)
 	PauseSession(ctx context.Context, id string) (conversation.Session, error)
 	ResumeSession(ctx context.Context, id string) (conversation.Session, error)

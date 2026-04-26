@@ -23,27 +23,35 @@ func (r *ConversationRepo) StartSession(ctx context.Context, in conversation.Ses
 	const q = `
 INSERT INTO conversation_sessions (issue_id, pair_id, status, goal, questions, start_state)
 VALUES ($1, $2, 'started', $3, $4, $5)
-RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at;
+RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at;
 `
 	var out conversation.Session
 	err := r.pool.QueryRow(ctx, q, in.IssueID, in.PairID, in.Goal, in.Questions, in.StartState).
-		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.CreatedAt, &out.FinishedAt)
+		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.EndedEarly, &out.EndedByUserID, &out.EndReason, &out.CreatedAt, &out.FinishedAt)
 	if err != nil {
 		return conversation.Session{}, err
 	}
 	return out, nil
 }
 
-func (r *ConversationRepo) FinishSession(ctx context.Context, id string, resultStatus conversation.ResultStatus, resultText *string, endState *string, finishedAt time.Time) (conversation.Session, error) {
+func (r *ConversationRepo) FinishSession(ctx context.Context, id string, resultStatus conversation.ResultStatus, resultText *string, endState *string, finishedAt time.Time, endedEarly bool, endedByUserID *string, endReason *string) (conversation.Session, error) {
 	const q = `
 UPDATE conversation_sessions
-SET status = 'finished', result_status = $2, result_text = $3, end_state = $4, finished_at = $5
+SET
+  status = 'finished',
+  result_status = $2,
+  result_text = $3,
+  end_state = $4,
+  finished_at = $5,
+  ended_early = $6,
+  ended_by_user_id = $7,
+  end_reason = $8
 WHERE id = $1
-RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at;
+RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at;
 `
 	var out conversation.Session
-	err := r.pool.QueryRow(ctx, q, id, resultStatus, resultText, endState, finishedAt).
-		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.CreatedAt, &out.FinishedAt)
+	err := r.pool.QueryRow(ctx, q, id, resultStatus, resultText, endState, finishedAt, endedEarly, endedByUserID, endReason).
+		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.EndedEarly, &out.EndedByUserID, &out.EndReason, &out.CreatedAt, &out.FinishedAt)
 	if isNoRows(err) {
 		return conversation.Session{}, repository.ErrNotFound
 	}
@@ -55,13 +63,13 @@ RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state
 
 func (r *ConversationRepo) GetSession(ctx context.Context, id string) (conversation.Session, error) {
 	const q = `
-SELECT id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at
+SELECT id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at
 FROM conversation_sessions
 WHERE id = $1;
 `
 	var out conversation.Session
 	err := r.pool.QueryRow(ctx, q, id).
-		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.CreatedAt, &out.FinishedAt)
+		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.EndedEarly, &out.EndedByUserID, &out.EndReason, &out.CreatedAt, &out.FinishedAt)
 	if isNoRows(err) {
 		return conversation.Session{}, repository.ErrNotFound
 	}
@@ -76,11 +84,11 @@ func (r *ConversationRepo) PauseSession(ctx context.Context, id string) (convers
 UPDATE conversation_sessions
 SET status = 'paused'
 WHERE id = $1
-RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at;
+RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at;
 `
 	var out conversation.Session
 	err := r.pool.QueryRow(ctx, q, id).
-		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.CreatedAt, &out.FinishedAt)
+		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.EndedEarly, &out.EndedByUserID, &out.EndReason, &out.CreatedAt, &out.FinishedAt)
 	if isNoRows(err) {
 		return conversation.Session{}, repository.ErrNotFound
 	}
@@ -95,11 +103,11 @@ func (r *ConversationRepo) ResumeSession(ctx context.Context, id string) (conver
 UPDATE conversation_sessions
 SET status = 'started'
 WHERE id = $1
-RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at;
+RETURNING id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at;
 `
 	var out conversation.Session
 	err := r.pool.QueryRow(ctx, q, id).
-		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.CreatedAt, &out.FinishedAt)
+		Scan(&out.ID, &out.IssueID, &out.PairID, &out.Status, &out.Goal, &out.Questions, &out.StartState, &out.EndState, &out.ResultStatus, &out.ResultText, &out.EndedEarly, &out.EndedByUserID, &out.EndReason, &out.CreatedAt, &out.FinishedAt)
 	if isNoRows(err) {
 		return conversation.Session{}, repository.ErrNotFound
 	}
@@ -118,7 +126,7 @@ func (r *ConversationRepo) ListByPair(ctx context.Context, pairID string, status
 	}
 
 	q := `
-SELECT id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at
+SELECT id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at
 FROM conversation_sessions
 WHERE pair_id = $1
 `
@@ -130,7 +138,7 @@ WHERE pair_id = $1
 	q += " ORDER BY created_at DESC LIMIT $3 OFFSET $4;"
 	if status == nil {
 		q = `
-SELECT id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, created_at, finished_at
+SELECT id, issue_id, pair_id, status, goal, questions, start_state, end_state, result_status, result_text, ended_early, ended_by_user_id, end_reason, created_at, finished_at
 FROM conversation_sessions
 WHERE pair_id = $1
 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
@@ -149,7 +157,7 @@ ORDER BY created_at DESC LIMIT $2 OFFSET $3;
 	var out []conversation.Session
 	for rows.Next() {
 		var s conversation.Session
-		if err := rows.Scan(&s.ID, &s.IssueID, &s.PairID, &s.Status, &s.Goal, &s.Questions, &s.StartState, &s.EndState, &s.ResultStatus, &s.ResultText, &s.CreatedAt, &s.FinishedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.IssueID, &s.PairID, &s.Status, &s.Goal, &s.Questions, &s.StartState, &s.EndState, &s.ResultStatus, &s.ResultText, &s.EndedEarly, &s.EndedByUserID, &s.EndReason, &s.CreatedAt, &s.FinishedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

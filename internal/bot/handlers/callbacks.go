@@ -37,6 +37,9 @@ const (
 	cbIssueDeleteYesPrefix      = "issue:delete_yes:"
 	cbIssueQuickYes             = "issue:quick_yes"
 	cbIssueQuickNo              = "issue:quick_no"
+	cbIssueSettingsPrefix       = "issue:settings:"
+	cbIssueRenamePrefix         = "issue:rename:"
+	cbIssueRepeatLimitPrefix    = "issue:repeat_limit:"
 
 	cbRepeatOpenPrefix      = "repeat:open:"
 	cbRepeatDisagreePrefix  = "repeat:disagree:"
@@ -50,6 +53,8 @@ const (
 	cbFocusBackToGoal              = "focus:back_goal"
 	cbFocusPlan                    = "focus:plan"
 	cbFocusBackToSelfState         = "focus:back_ss_self"
+	cbFocusBackToSelect            = "focus:back_select"
+	cbFocusBackToPartnerState      = "focus:back_ss_partner"
 
 	cbConvPausePrefix  = "conv:pause:"
 	cbConvResumePrefix = "conv:resume:"
@@ -57,6 +62,8 @@ const (
 	cbConvSidePrefix   = "conv:side:"
 	cbConvFinishPrefix = "conv:finish:"
 	cbConvBackToActive = "conv:back_active"
+	cbConvEarlyPrefix  = "conv:early:"
+	cbConvEarlyReason  = "conv:early_reason:"
 
 	cbFinishStatusPrefix          = "finish:status:"
 	cbFinishBackToStatus          = "finish:back_status"

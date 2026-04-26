@@ -369,6 +369,43 @@ RETURNING
 	return it, nil
 }
 
+func (r *IssueRepo) UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int) (issue.Issue, error) {
+	const q = `
+UPDATE issues
+SET
+  title = COALESCE($2::text, title),
+  repeat_threshold = COALESCE($3::int, repeat_threshold),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING
+  id, pair_id, created_by_user_id, title, description, priority, visibility,
+  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at;
+`
+	var it issue.Issue
+	err := r.pool.QueryRow(ctx, q, issueID, title, repeatThreshold).Scan(
+		&it.ID,
+		&it.PairID,
+		&it.CreatedByUserID,
+		&it.Title,
+		&it.Description,
+		&it.Priority,
+		&it.Visibility,
+		&it.RepeatThreshold,
+		&it.RepeatCount,
+		&it.Status,
+		&it.CreatedAt,
+		&it.UpdatedAt,
+		&it.ResolvedAt,
+	)
+	if isNoRows(err) {
+		return issue.Issue{}, repository.ErrNotFound
+	}
+	if err != nil {
+		return issue.Issue{}, err
+	}
+	return it, nil
+}
+
 func (r *IssueRepo) DeleteIssue(ctx context.Context, issueID string) error {
 	const q = `DELETE FROM issues WHERE id = $1;`
 	ct, err := r.pool.Exec(ctx, q, issueID)

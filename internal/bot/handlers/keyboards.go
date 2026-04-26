@@ -53,7 +53,7 @@ func noPairKeyboard() *tgbotapi.InlineKeyboardMarkup {
 }
 
 func backMenuKeyboard() *tgbotapi.InlineKeyboardMarkup {
-	return nil
+	return backToMenuKeyboard()
 }
 
 func cancelKeyboard() *tgbotapi.InlineKeyboardMarkup {
@@ -220,6 +220,9 @@ func issueCardKeyboard(issueID string, status string) *tgbotapi.InlineKeyboardMa
 		tgbotapi.NewInlineKeyboardButtonData("📝 Повторения", cbIssueRepeatsPrefix+issueID),
 		tgbotapi.NewInlineKeyboardButtonData("📚 История", cbIssueHistoryPrefix+issueID),
 	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", cbIssueSettingsPrefix+issueID),
+	))
 	if status == "resolved" {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("♻️ Восстановить тему", cbIssueRestorePrefix+issueID),
@@ -293,7 +296,13 @@ func conversationKeyboard(conversationID string, paused bool) *tgbotapi.InlineKe
 			tgbotapi.NewInlineKeyboardButtonData("📝 Записать мысль", cbConvNotePrefix+conversationID),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⏹ Досрочно завершить", cbConvEarlyPrefix+conversationID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✅ Завершить", cbConvFinishPrefix+conversationID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Назад", cbMenu),
 		),
 	)
 	return &kb

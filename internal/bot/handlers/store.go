@@ -30,12 +30,17 @@ const (
 	StateConvSideTitle      BotState = "conv_side_title"
 	StateConvSideDesc       BotState = "conv_side_desc"
 
+	StateConvEarlyOther BotState = "conv_early_other"
+
 	StateFinishStatus          BotState = "finish_status"
 	StateFinishEndStateSelf    BotState = "finish_end_state_self"
 	StateFinishEndStatePartner BotState = "finish_end_state_partner"
 	StateFinishText            BotState = "finish_text"
 
 	StatePairWelcome BotState = "pair_welcome"
+
+	StateIssueRename      BotState = "issue_rename"
+	StateIssueRepeatLimit BotState = "issue_repeat_limit"
 )
 
 type Session struct {
@@ -54,6 +59,7 @@ type Session struct {
 	CurrentIssueID     string
 	CurrentRepeatID    string
 	PendingForwardText string
+	EarlyEndReason     string
 
 	AddIssueTitle       string
 	AddIssueDescription string

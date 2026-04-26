@@ -65,6 +65,7 @@ func NewRouter(log *slog.Logger, svc Services) http.Handler {
 		r.Get("/pairs/{pair_id}/issues", issuesH.ListIssues)
 
 		r.Get("/issues/{issue_id}", issuesH.GetIssue)
+		r.Patch("/issues/{issue_id}", issuesH.UpdateIssue)
 		r.Post("/issues/{issue_id}/repeat", issuesH.RepeatIssue)
 		r.Patch("/issues/{issue_id}/status", issuesH.UpdateStatus)
 		r.Delete("/issues/{issue_id}", issuesH.DeleteIssue)

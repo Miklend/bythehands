@@ -121,6 +121,44 @@ func (s *IssueService) GetIssue(ctx context.Context, issueID string) (issue.Issu
 	return it, nil
 }
 
+type UpdateIssueInput struct {
+	Title           *string
+	RepeatThreshold *int
+}
+
+func (s *IssueService) UpdateIssue(ctx context.Context, issueID string, in UpdateIssueInput) (issue.Issue, error) {
+	if !validateUUID(issueID) {
+		return issue.Issue{}, validation("invalid issue_id")
+	}
+	var title *string
+	if in.Title != nil {
+		t := strings.TrimSpace(*in.Title)
+		if t == "" {
+			return issue.Issue{}, validation("title is required")
+		}
+		title = &t
+	}
+	var thr *int
+	if in.RepeatThreshold != nil {
+		if *in.RepeatThreshold < 0 {
+			return issue.Issue{}, validation("repeat_threshold must be >= 0")
+		}
+		v := *in.RepeatThreshold
+		thr = &v
+	}
+	if title == nil && thr == nil {
+		return issue.Issue{}, validation("no fields to update")
+	}
+	it, err := s.iss.UpdateIssue(ctx, issueID, title, thr)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			return issue.Issue{}, notFound("issue not found", err)
+		}
+		return issue.Issue{}, err
+	}
+	return it, nil
+}
+
 func (s *IssueService) Repeat(ctx context.Context, issueID, userID string, note *string) (issue.Issue, error) {
 	if !validateUUID(issueID) {
 		return issue.Issue{}, validation("invalid issue_id")

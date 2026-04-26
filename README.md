@@ -1,9 +1,9 @@
-# Taalkbout / TalkaBot (MVP scaffold)
+# Talkabout / TalkaBot (MVP scaffold)
 
 Репозиторий содержит **два отдельных микросервиса**:
 
-- `taalkbout-api` — core REST API + бизнес-логика + PostgreSQL.
-- `taalkbout-bot` — Telegram bot service без бизнес-логики, общается с API **только по HTTP**.
+- `talkabout-api` — core REST API + бизнес-логика + PostgreSQL.
+- `talkabout-bot` — Telegram bot service без бизнес-логики, общается с API **только по HTTP**.
 
 ## Быстрый старт
 
@@ -21,13 +21,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-При старте `taalkbout-api` автоматически применяет миграции из `./migrations`.
+При старте `talkabout-api` автоматически применяет миграции из `./migrations`.
 
 Логи:
 
 ```bash
-docker compose logs -f taalkbout-api
-docker compose logs -f taalkbout-bot
+docker compose logs -f talkabout-api
+docker compose logs -f talkabout-bot
 ```
 
 Остановка:
@@ -36,18 +36,18 @@ docker compose logs -f taalkbout-bot
 docker compose down
 ```
 
-## Миграции (golang-migrate внутри `taalkbout-api`)
+## Миграции (golang-migrate внутри `talkabout-api`)
 
 Поднять миграции:
 
 ```bash
-docker compose exec taalkbout-api migrate -path /migrations -database "$DATABASE_URL" up
+docker compose exec talkabout-api migrate -path /migrations -database "$DATABASE_URL" up
 ```
 
 Откатить миграции:
 
 ```bash
-docker compose exec taalkbout-api migrate -path /migrations -database "$DATABASE_URL" down
+docker compose exec talkabout-api migrate -path /migrations -database "$DATABASE_URL" down
 ```
 
 ## API

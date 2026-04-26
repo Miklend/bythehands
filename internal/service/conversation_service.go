@@ -27,9 +27,12 @@ type StartConversationInput struct {
 }
 
 type FinishConversationInput struct {
-	ResultStatus conversation.ResultStatus
-	ResultText   *string
-	EndState     *string
+	ResultStatus  conversation.ResultStatus
+	ResultText    *string
+	EndState      *string
+	EndedEarly    bool
+	EndedByUserID *string
+	EndReason     *string
 }
 
 func NewConversationService(users repository.UserRepository, pairs repository.PairRepository, iss repository.IssueRepository, conv repository.ConversationRepository) *ConversationService {
@@ -121,7 +124,32 @@ func (s *ConversationService) Finish(ctx context.Context, conversationID string,
 			endState = &v
 		}
 	}
-	sess, err := s.conv.FinishSession(ctx, conversationID, in.ResultStatus, text, endState, s.now())
+
+	var endedBy *string
+	var endReason *string
+	if in.EndedEarly {
+		if in.EndedByUserID == nil || !validateUUID(*in.EndedByUserID) {
+			return conversation.Session{}, validation("invalid ended_by_user_id")
+		}
+		if _, err := s.users.GetByID(ctx, *in.EndedByUserID); err != nil {
+			if err == repository.ErrNotFound {
+				return conversation.Session{}, notFound("user not found", err)
+			}
+			return conversation.Session{}, err
+		}
+		endedBy = in.EndedByUserID
+		if in.EndReason != nil {
+			r := strings.TrimSpace(*in.EndReason)
+			if r == "" {
+				return conversation.Session{}, validation("end_reason is required")
+			}
+			endReason = &r
+		} else {
+			return conversation.Session{}, validation("end_reason is required")
+		}
+	}
+
+	sess, err := s.conv.FinishSession(ctx, conversationID, in.ResultStatus, text, endState, s.now(), in.EndedEarly, endedBy, endReason)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return conversation.Session{}, notFound("conversation not found", err)
