@@ -21,10 +21,11 @@ func NewConversationsHandler(log *slog.Logger, svc *service.ConversationService)
 }
 
 type startConversationRequest struct {
-	PairID     string  `json:"pair_id"`
-	Goal       *string `json:"goal"`
-	Questions  *string `json:"questions"`
-	StartState *string `json:"start_state"`
+	PairID             string  `json:"pair_id"`
+	Goal               *string `json:"goal"`
+	Questions          *string `json:"questions"`
+	StartState         *string `json:"start_state"`
+	RuleViolationLimit int     `json:"rule_violation_limit"`
 }
 
 func (h *ConversationsHandler) StartConversation(w http.ResponseWriter, r *http.Request) {
@@ -35,11 +36,12 @@ func (h *ConversationsHandler) StartConversation(w http.ResponseWriter, r *http.
 			return &service.Error{Kind: service.KindValidation, Message: "invalid json", Err: err}
 		}
 		sess, err := h.svc.Start(r.Context(), service.StartConversationInput{
-			IssueID:    issueID,
-			PairID:     req.PairID,
-			Goal:       req.Goal,
-			Questions:  req.Questions,
-			StartState: req.StartState,
+			IssueID:            issueID,
+			PairID:             req.PairID,
+			Goal:               req.Goal,
+			Questions:          req.Questions,
+			StartState:         req.StartState,
+			RuleViolationLimit: req.RuleViolationLimit,
 		})
 		if err != nil {
 			return err
@@ -50,12 +52,13 @@ func (h *ConversationsHandler) StartConversation(w http.ResponseWriter, r *http.
 }
 
 type finishConversationRequest struct {
-	ResultStatus  conversation.ResultStatus `json:"result_status"`
-	ResultText    *string                   `json:"result_text"`
-	EndState      *string                   `json:"end_state"`
-	EndedEarly    bool                      `json:"ended_early"`
-	EndedByUserID *string                   `json:"ended_by_user_id"`
-	EndReason     *string                   `json:"end_reason"`
+	ResultStatus    conversation.ResultStatus `json:"result_status"`
+	ResultText      *string                   `json:"result_text"`
+	EndState        *string                   `json:"end_state"`
+	EndedEarly      bool                      `json:"ended_early"`
+	EndedByUserID   *string                   `json:"ended_by_user_id"`
+	EndedInitiative *string                   `json:"ended_initiative"`
+	EndReason       *string                   `json:"end_reason"`
 }
 
 func (h *ConversationsHandler) FinishConversation(w http.ResponseWriter, r *http.Request) {
@@ -66,12 +69,13 @@ func (h *ConversationsHandler) FinishConversation(w http.ResponseWriter, r *http
 			return &service.Error{Kind: service.KindValidation, Message: "invalid json", Err: err}
 		}
 		sess, err := h.svc.Finish(r.Context(), id, service.FinishConversationInput{
-			ResultStatus:  req.ResultStatus,
-			ResultText:    req.ResultText,
-			EndState:      req.EndState,
-			EndedEarly:    req.EndedEarly,
-			EndedByUserID: req.EndedByUserID,
-			EndReason:     req.EndReason,
+			ResultStatus:    req.ResultStatus,
+			ResultText:      req.ResultText,
+			EndState:        req.EndState,
+			EndedEarly:      req.EndedEarly,
+			EndedByUserID:   req.EndedByUserID,
+			EndedInitiative: req.EndedInitiative,
+			EndReason:       req.EndReason,
 		})
 		if err != nil {
 			return err
@@ -230,6 +234,41 @@ func (h *ConversationsHandler) DeleteNote(w http.ResponseWriter, r *http.Request
 			return err
 		}
 		WriteJSON(w, http.StatusOK, Envelope{Data: map[string]string{"status": "ok"}})
+		return nil
+	})(w, r)
+}
+
+type addRuleViolationRequest struct {
+	UserID   string `json:"user_id"`
+	RuleCode string `json:"rule_code"`
+	Note     string `json:"note"`
+}
+
+func (h *ConversationsHandler) AddRuleViolation(w http.ResponseWriter, r *http.Request) {
+	Wrap(h.log, h.mapE, func(w http.ResponseWriter, r *http.Request) error {
+		id := chi.URLParam(r, "conversation_id")
+		var req addRuleViolationRequest
+		if err := DecodeJSON(r, &req); err != nil {
+			return &service.Error{Kind: service.KindValidation, Message: "invalid json", Err: err}
+		}
+		if err := h.svc.AddRuleViolation(r.Context(), id, req.UserID, req.RuleCode, req.Note); err != nil {
+			return err
+		}
+		WriteJSON(w, http.StatusCreated, Envelope{Data: map[string]string{"status": "ok"}})
+		return nil
+	})(w, r)
+}
+
+func (h *ConversationsHandler) ListRuleViolations(w http.ResponseWriter, r *http.Request) {
+	Wrap(h.log, h.mapE, func(w http.ResponseWriter, r *http.Request) error {
+		id := chi.URLParam(r, "conversation_id")
+		limit := parseInt(r.URL.Query().Get("limit"), 20)
+		offset := parseInt(r.URL.Query().Get("offset"), 0)
+		items, err := h.svc.ListRuleViolations(r.Context(), id, limit, offset)
+		if err != nil {
+			return err
+		}
+		WriteJSON(w, http.StatusOK, Envelope{Data: items})
 		return nil
 	})(w, r)
 }

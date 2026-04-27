@@ -58,6 +58,7 @@ func NewRouter(log *slog.Logger, svc Services) http.Handler {
 		r.Get("/pairs/{pair_id}", pairsH.GetPair)
 		r.Post("/pairs/{pair_id}/invite", pairsH.CreateInvite)
 		r.Patch("/pairs/{pair_id}/welcome", pairsH.SetWelcome)
+		r.Patch("/pairs/{pair_id}/member-name", pairsH.SetMemberName)
 
 		r.Post("/invites/{token}/join", invH.JoinByToken)
 
@@ -82,6 +83,8 @@ func NewRouter(log *slog.Logger, svc Services) http.Handler {
 		r.Patch("/conversations/{conversation_id}/resume", convH.ResumeConversation)
 		r.Post("/conversations/{conversation_id}/notes", convH.AddNote)
 		r.Get("/conversations/{conversation_id}/notes", convH.ListNotes)
+		r.Post("/conversations/{conversation_id}/rule-violations", convH.AddRuleViolation)
+		r.Get("/conversations/{conversation_id}/rule-violations", convH.ListRuleViolations)
 		r.Post("/conversations/{conversation_id}/side-issues", convH.AddSideIssue)
 		r.Get("/conversations/{conversation_id}/side-issues", convH.ListSideIssues)
 		r.Get("/pairs/{pair_id}/conversations", convH.ListByPair)

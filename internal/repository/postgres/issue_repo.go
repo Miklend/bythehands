@@ -22,12 +22,12 @@ func (r *IssueRepo) CreateIssue(ctx context.Context, in issue.Issue) (issue.Issu
 	const q = `
 INSERT INTO issues (
   pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,0,'active')
+VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,NULL,'active')
 RETURNING
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at;
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at;
 `
 	var out issue.Issue
 	err := r.pool.QueryRow(
@@ -40,6 +40,7 @@ RETURNING
 		in.Priority,
 		in.Visibility,
 		in.RepeatThreshold,
+		in.RepeatLimit,
 	).Scan(
 		&out.ID,
 		&out.PairID,
@@ -50,6 +51,8 @@ RETURNING
 		&out.Visibility,
 		&out.RepeatThreshold,
 		&out.RepeatCount,
+		&out.RepeatLimit,
+		&out.LastRepeatedAt,
 		&out.Status,
 		&out.CreatedAt,
 		&out.UpdatedAt,
@@ -65,7 +68,7 @@ func (r *IssueRepo) ListIssuesByPair(ctx context.Context, pairID string, status 
 	q := `
 SELECT
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at
 FROM issues
 WHERE pair_id = $1
 `
@@ -95,6 +98,8 @@ WHERE pair_id = $1
 			&it.Visibility,
 			&it.RepeatThreshold,
 			&it.RepeatCount,
+			&it.RepeatLimit,
+			&it.LastRepeatedAt,
 			&it.Status,
 			&it.CreatedAt,
 			&it.UpdatedAt,
@@ -114,7 +119,7 @@ func (r *IssueRepo) GetIssue(ctx context.Context, issueID string) (issue.Issue, 
 	const q = `
 SELECT
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at
 FROM issues
 WHERE id = $1;
 `
@@ -129,6 +134,8 @@ WHERE id = $1;
 		&it.Visibility,
 		&it.RepeatThreshold,
 		&it.RepeatCount,
+		&it.RepeatLimit,
+		&it.LastRepeatedAt,
 		&it.Status,
 		&it.CreatedAt,
 		&it.UpdatedAt,
@@ -160,11 +167,11 @@ VALUES ($1, $2, $3);
 
 	const bumpIssue = `
 UPDATE issues
-SET repeat_count = repeat_count + 1, updated_at = NOW()
-WHERE id = $1
+SET repeat_count = repeat_count + 1, updated_at = NOW(), last_repeated_at = NOW()
+WHERE id = $1 AND (repeat_limit = 0 OR repeat_count < repeat_limit)
 RETURNING
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at;
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at;
 `
 	var it issue.Issue
 	err = tx.QueryRow(ctx, bumpIssue, issueID).Scan(
@@ -177,13 +184,24 @@ RETURNING
 		&it.Visibility,
 		&it.RepeatThreshold,
 		&it.RepeatCount,
+		&it.RepeatLimit,
+		&it.LastRepeatedAt,
 		&it.Status,
 		&it.CreatedAt,
 		&it.UpdatedAt,
 		&it.ResolvedAt,
 	)
 	if isNoRows(err) {
-		return issue.Issue{}, repository.ErrNotFound
+		const existsQ = `SELECT 1 FROM issues WHERE id = $1;`
+		var one int
+		exErr := tx.QueryRow(ctx, existsQ, issueID).Scan(&one)
+		if isNoRows(exErr) {
+			return issue.Issue{}, repository.ErrNotFound
+		}
+		if exErr != nil {
+			return issue.Issue{}, exErr
+		}
+		return issue.Issue{}, repository.ErrConflict
 	}
 	if err != nil {
 		return issue.Issue{}, err
@@ -198,11 +216,11 @@ RETURNING
 func (r *IssueRepo) IncrementRepeat(ctx context.Context, issueID string) (issue.Issue, error) {
 	const q = `
 UPDATE issues
-SET repeat_count = repeat_count + 1, updated_at = NOW()
+SET repeat_count = repeat_count + 1, updated_at = NOW(), last_repeated_at = NOW()
 WHERE id = $1
 RETURNING
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at;
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at;
 `
 	var it issue.Issue
 	err := r.pool.QueryRow(ctx, q, issueID).Scan(
@@ -215,6 +233,8 @@ RETURNING
 		&it.Visibility,
 		&it.RepeatThreshold,
 		&it.RepeatCount,
+		&it.RepeatLimit,
+		&it.LastRepeatedAt,
 		&it.Status,
 		&it.CreatedAt,
 		&it.UpdatedAt,
@@ -342,7 +362,7 @@ SET
 WHERE id = $1
 RETURNING
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at;
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at;
 `
 	var it issue.Issue
 	err := r.pool.QueryRow(ctx, q, issueID, status).Scan(
@@ -355,6 +375,8 @@ RETURNING
 		&it.Visibility,
 		&it.RepeatThreshold,
 		&it.RepeatCount,
+		&it.RepeatLimit,
+		&it.LastRepeatedAt,
 		&it.Status,
 		&it.CreatedAt,
 		&it.UpdatedAt,
@@ -369,20 +391,21 @@ RETURNING
 	return it, nil
 }
 
-func (r *IssueRepo) UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int) (issue.Issue, error) {
+func (r *IssueRepo) UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int, repeatLimit *int) (issue.Issue, error) {
 	const q = `
 UPDATE issues
 SET
   title = COALESCE($2::text, title),
   repeat_threshold = COALESCE($3::int, repeat_threshold),
+  repeat_limit = COALESCE($4::int, repeat_limit),
   updated_at = NOW()
 WHERE id = $1
 RETURNING
   id, pair_id, created_by_user_id, title, description, priority, visibility,
-  repeat_threshold, repeat_count, status, created_at, updated_at, resolved_at;
+  repeat_threshold, repeat_count, repeat_limit, last_repeated_at, status, created_at, updated_at, resolved_at;
 `
 	var it issue.Issue
-	err := r.pool.QueryRow(ctx, q, issueID, title, repeatThreshold).Scan(
+	err := r.pool.QueryRow(ctx, q, issueID, title, repeatThreshold, repeatLimit).Scan(
 		&it.ID,
 		&it.PairID,
 		&it.CreatedByUserID,
@@ -392,6 +415,8 @@ RETURNING
 		&it.Visibility,
 		&it.RepeatThreshold,
 		&it.RepeatCount,
+		&it.RepeatLimit,
+		&it.LastRepeatedAt,
 		&it.Status,
 		&it.CreatedAt,
 		&it.UpdatedAt,

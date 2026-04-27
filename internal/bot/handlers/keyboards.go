@@ -129,6 +129,46 @@ func stateKeyboard(prefix string, back string) *tgbotapi.InlineKeyboardMarkup {
 	return &kb
 }
 
+func focusRuleLimitKeyboard() *tgbotapi.InlineKeyboardMarkup {
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("0", cbFocusRuleLimitPrefix+"0"),
+			tgbotapi.NewInlineKeyboardButtonData("1", cbFocusRuleLimitPrefix+"1"),
+			tgbotapi.NewInlineKeyboardButtonData("2", cbFocusRuleLimitPrefix+"2"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("3", cbFocusRuleLimitPrefix+"3"),
+			tgbotapi.NewInlineKeyboardButtonData("5", cbFocusRuleLimitPrefix+"5"),
+			tgbotapi.NewInlineKeyboardButtonData("10", cbFocusRuleLimitPrefix+"10"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Назад", cbFocusBackToPartnerState),
+		),
+	)
+	return &kb
+}
+
+func convViolationRulesKeyboard() *tgbotapi.InlineKeyboardMarkup {
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Говорим от себя", cbConvViolationPickPrefix+"i_messages"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Не перебиваем", cbConvViolationPickPrefix+"no_interrupt"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Один вопрос — один ответ", cbConvViolationPickPrefix+"one_question"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Нужна пауза", cbConvViolationPickPrefix+"need_break"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Назад", cbConvBackToActive),
+		),
+	)
+	return &kb
+}
+
 func pairCreatedKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -296,13 +336,17 @@ func conversationKeyboard(conversationID string, paused bool) *tgbotapi.InlineKe
 			tgbotapi.NewInlineKeyboardButtonData("📝 Записать мысль", cbConvNotePrefix+conversationID),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📝 Повторения", cbConvRepeatsPrefix+conversationID),
+			tgbotapi.NewInlineKeyboardButtonData("📏 Правила", cbConvRulesPrefix+conversationID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🚫 Нарушение правила", cbConvViolationPrefix+conversationID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⏹ Досрочно завершить", cbConvEarlyPrefix+conversationID),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✅ Завершить", cbConvFinishPrefix+conversationID),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Назад", cbMenu),
 		),
 	)
 	return &kb
@@ -317,6 +361,20 @@ func finishStatusKeyboard() *tgbotapi.InlineKeyboardMarkup {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Вернуться позже", cbFinishStatusPrefix+"postponed"),
 			tgbotapi.NewInlineKeyboardButtonData("Не договорились", cbFinishStatusPrefix+"unresolved"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Назад", cbConvBackToActive),
+		),
+	)
+	return &kb
+}
+
+func earlyInitiativeKeyboard() *tgbotapi.InlineKeyboardMarkup {
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Я", cbConvEarlyInit+"self"),
+			tgbotapi.NewInlineKeyboardButtonData("Партнер", cbConvEarlyInit+"partner"),
+			tgbotapi.NewInlineKeyboardButtonData("Обоюдно", cbConvEarlyInit+"both"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Назад", cbConvBackToActive),

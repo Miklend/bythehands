@@ -90,3 +90,24 @@ func (h *PairsHandler) SetWelcome(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})(w, r)
 }
+
+type setMemberNameRequest struct {
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+}
+
+func (h *PairsHandler) SetMemberName(w http.ResponseWriter, r *http.Request) {
+	Wrap(h.log, h.mapE, func(w http.ResponseWriter, r *http.Request) error {
+		pairID := chi.URLParam(r, "pair_id")
+		var req setMemberNameRequest
+		if err := DecodeJSON(r, &req); err != nil {
+			return &service.Error{Kind: service.KindValidation, Message: "invalid json", Err: err}
+		}
+		m, err := h.svc.SetMemberName(r.Context(), pairID, req.UserID, req.Name)
+		if err != nil {
+			return err
+		}
+		WriteJSON(w, http.StatusOK, Envelope{Data: m})
+		return nil
+	})(w, r)
+}

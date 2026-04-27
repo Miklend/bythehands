@@ -35,11 +35,11 @@ func (r *PairRepo) AddMember(ctx context.Context, pairID, userID string, role pa
 	const q = `
 INSERT INTO pair_members (pair_id, user_id, role)
 VALUES ($1, $2, $3)
-RETURNING id, pair_id, user_id, role, created_at;
+RETURNING id, pair_id, user_id, role, custom_name, created_at;
 `
 	var m pair.PairMember
 	err := r.pool.QueryRow(ctx, q, pairID, userID, role).
-		Scan(&m.ID, &m.PairID, &m.UserID, &m.Role, &m.CreatedAt)
+		Scan(&m.ID, &m.PairID, &m.UserID, &m.Role, &m.CustomName, &m.CreatedAt)
 	if isUniqueViolation(err) {
 		return pair.PairMember{}, repository.ErrConflict
 	}
@@ -68,7 +68,7 @@ WHERE id = $1;
 
 func (r *PairRepo) GetMembers(ctx context.Context, pairID string) ([]pair.PairMember, error) {
 	const q = `
-SELECT id, pair_id, user_id, role, created_at
+SELECT id, pair_id, user_id, role, custom_name, created_at
 FROM pair_members
 WHERE pair_id = $1
 ORDER BY created_at ASC;
@@ -82,7 +82,7 @@ ORDER BY created_at ASC;
 	var out []pair.PairMember
 	for rows.Next() {
 		var m pair.PairMember
-		if err := rows.Scan(&m.ID, &m.PairID, &m.UserID, &m.Role, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.PairID, &m.UserID, &m.Role, &m.CustomName, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -155,4 +155,23 @@ RETURNING id, status, is_test, welcome_message, created_at, updated_at;
 		return pair.Pair{}, err
 	}
 	return p, nil
+}
+
+func (r *PairRepo) SetMemberName(ctx context.Context, pairID, userID string, name *string) (pair.PairMember, error) {
+	const q = `
+UPDATE pair_members
+SET custom_name = $3
+WHERE pair_id = $1 AND user_id = $2
+RETURNING id, pair_id, user_id, role, custom_name, created_at;
+`
+	var m pair.PairMember
+	err := r.pool.QueryRow(ctx, q, pairID, userID, name).
+		Scan(&m.ID, &m.PairID, &m.UserID, &m.Role, &m.CustomName, &m.CreatedAt)
+	if isNoRows(err) {
+		return pair.PairMember{}, repository.ErrNotFound
+	}
+	if err != nil {
+		return pair.PairMember{}, err
+	}
+	return m, nil
 }

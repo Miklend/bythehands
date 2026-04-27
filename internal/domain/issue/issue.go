@@ -35,8 +35,10 @@ type Issue struct {
 	Description     string     `json:"description"`
 	Priority        Priority   `json:"priority"`
 	Visibility      Visibility `json:"visibility"`
-	RepeatThreshold int        `json:"repeat_threshold"`
+	RepeatThreshold int        `json:"repeat_threshold"` // лимит показа (после скольких повторений открыть скрытую тему)
 	RepeatCount     int        `json:"repeat_count"`
+	RepeatLimit     int        `json:"repeat_limit"` // лимит общего числа повторений (0 = без лимита)
+	LastRepeatedAt  *time.Time `json:"last_repeated_at,omitempty"`
 	Status          Status     `json:"status"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`

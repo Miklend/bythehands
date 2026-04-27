@@ -26,11 +26,12 @@ type Pair struct {
 }
 
 type PairMember struct {
-	ID        string    `json:"id"`
-	PairID    string    `json:"pair_id"`
-	UserID    string    `json:"user_id"`
-	Role      Role      `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string    `json:"id"`
+	PairID     string    `json:"pair_id"`
+	UserID     string    `json:"user_id"`
+	Role       Role      `json:"role"`
+	CustomName *string   `json:"custom_name,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type InviteStatus string

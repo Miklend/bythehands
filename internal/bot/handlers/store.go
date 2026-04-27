@@ -18,17 +18,21 @@ const (
 	StateAddRepeatForwardComment BotState = "add_repeat_forward_comment"
 	StateAddRepeatDisagreeNote   BotState = "add_repeat_disagree_note"
 
+	StateTopicsSearch BotState = "topics_search"
+
 	StateFocusSelectIssue       BotState = "focus_select_issue"
 	StateFocusGoal              BotState = "focus_goal"
 	StateFocusQuestions         BotState = "focus_questions"
 	StateFocusStartStateSelf    BotState = "focus_start_state_self"
 	StateFocusStartStatePartner BotState = "focus_start_state_partner"
+	StateFocusRuleLimit         BotState = "focus_rule_limit"
 	StateFocusPlan              BotState = "focus_plan"
 
 	StateConvNote           BotState = "conv_note"
 	StateConvForwardComment BotState = "conv_forward_comment"
 	StateConvSideTitle      BotState = "conv_side_title"
 	StateConvSideDesc       BotState = "conv_side_desc"
+	StateConvViolationNote  BotState = "conv_violation_note"
 
 	StateConvEarlyOther BotState = "conv_early_other"
 
@@ -38,9 +42,11 @@ const (
 	StateFinishText            BotState = "finish_text"
 
 	StatePairWelcome BotState = "pair_welcome"
+	StatePairMyName  BotState = "pair_my_name"
 
 	StateIssueRename      BotState = "issue_rename"
 	StateIssueRepeatLimit BotState = "issue_repeat_limit"
+	StateIssueShowLimit   BotState = "issue_show_limit"
 )
 
 type Session struct {
@@ -60,6 +66,8 @@ type Session struct {
 	CurrentRepeatID    string
 	PendingForwardText string
 	EarlyEndReason     string
+	EarlyEndInitiative string
+	PendingRuleCode    string
 
 	AddIssueTitle       string
 	AddIssueDescription string
@@ -72,6 +80,7 @@ type Session struct {
 	FocusQuestions         string
 	FocusStartStateSelf    string
 	FocusStartStatePartner string
+	FocusRuleLimit         int
 
 	ConversationID        string
 	ConversationIssueID   string

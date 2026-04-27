@@ -24,6 +24,7 @@ type PairRepository interface {
 	ListPairsByUser(ctx context.Context, userID string) ([]pair.Pair, error)
 	ArchivePair(ctx context.Context, pairID string) (pair.Pair, error)
 	SetWelcomeMessage(ctx context.Context, pairID string, text *string) (pair.Pair, error)
+	SetMemberName(ctx context.Context, pairID, userID string, name *string) (pair.PairMember, error)
 }
 
 type InviteRepository interface {
@@ -44,7 +45,7 @@ type IssueRepository interface {
 	GetRepeat(ctx context.Context, repeatID string) (issue.IssueRepeat, error)
 	CreateRepeatDisagreement(ctx context.Context, repeatID, userID string, note string) (issue.IssueRepeatDisagreement, error)
 	GetRepeatDisagreement(ctx context.Context, repeatID, userID string) (issue.IssueRepeatDisagreement, error)
-	UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int) (issue.Issue, error)
+	UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int, repeatLimit *int) (issue.Issue, error)
 	UpdateStatus(ctx context.Context, issueID string, status issue.Status) (issue.Issue, error)
 	DeleteIssue(ctx context.Context, issueID string) error
 	DeleteRepeat(ctx context.Context, repeatID string) error
@@ -52,7 +53,7 @@ type IssueRepository interface {
 
 type ConversationRepository interface {
 	StartSession(ctx context.Context, in conversation.Session) (conversation.Session, error)
-	FinishSession(ctx context.Context, id string, resultStatus conversation.ResultStatus, resultText *string, endState *string, finishedAt time.Time, endedEarly bool, endedByUserID *string, endReason *string) (conversation.Session, error)
+	FinishSession(ctx context.Context, id string, resultStatus conversation.ResultStatus, resultText *string, endState *string, finishedAt time.Time, endedEarly bool, endedByUserID *string, endedInitiative *string, endReason *string) (conversation.Session, error)
 	GetSession(ctx context.Context, id string) (conversation.Session, error)
 	PauseSession(ctx context.Context, id string) (conversation.Session, error)
 	ResumeSession(ctx context.Context, id string) (conversation.Session, error)
@@ -63,6 +64,9 @@ type ConversationRepository interface {
 	ListSideIssues(ctx context.Context, conversationID string) ([]issue.Issue, error)
 	ListNotesByPair(ctx context.Context, pairID string, limit, offset int) ([]conversation.PairNote, error)
 	DeleteNote(ctx context.Context, noteID string) error
+	AddRuleViolation(ctx context.Context, conversationID, userID, ruleCode, note string) error
+	ListRuleViolations(ctx context.Context, conversationID string, limit, offset int) ([]conversation.RuleViolation, error)
+	CountRuleViolations(ctx context.Context, conversationID string) (int, error)
 }
 
 type PreferencesRepository interface {

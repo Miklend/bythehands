@@ -25,7 +25,8 @@ type CreateIssueInput struct {
 	Description     string
 	Priority        issue.Priority
 	Visibility      issue.Visibility
-	RepeatThreshold int
+	RepeatThreshold int // лимит показа (для скрытых тем)
+	RepeatLimit     int // лимит повторений (0 = без лимита)
 }
 
 func (s *IssueService) CreateIssue(ctx context.Context, in CreateIssueInput) (issue.Issue, error) {
@@ -43,6 +44,9 @@ func (s *IssueService) CreateIssue(ctx context.Context, in CreateIssueInput) (is
 	}
 	if in.RepeatThreshold < 0 {
 		return issue.Issue{}, validation("repeat_threshold must be >= 0")
+	}
+	if in.RepeatLimit < 0 {
+		return issue.Issue{}, validation("repeat_limit must be >= 0")
 	}
 
 	if in.Priority == "" {
@@ -76,6 +80,18 @@ func (s *IssueService) CreateIssue(ctx context.Context, in CreateIssueInput) (is
 		return issue.Issue{}, err
 	}
 
+	// no duplicates in the same pair (trim + case-insensitive)
+	existing, err := s.iss.ListIssuesByPair(ctx, in.PairID, nil)
+	if err != nil {
+		return issue.Issue{}, err
+	}
+	titleNorm := strings.TrimSpace(in.Title)
+	for _, it := range existing {
+		if strings.EqualFold(strings.TrimSpace(it.Title), titleNorm) {
+			return issue.Issue{}, conflict("issue title already exists", nil)
+		}
+	}
+
 	return s.iss.CreateIssue(ctx, issue.Issue{
 		PairID:          in.PairID,
 		CreatedByUserID: in.CreatedByUserID,
@@ -84,6 +100,7 @@ func (s *IssueService) CreateIssue(ctx context.Context, in CreateIssueInput) (is
 		Priority:        in.Priority,
 		Visibility:      in.Visibility,
 		RepeatThreshold: in.RepeatThreshold,
+		RepeatLimit:     in.RepeatLimit,
 	})
 }
 
@@ -124,6 +141,7 @@ func (s *IssueService) GetIssue(ctx context.Context, issueID string) (issue.Issu
 type UpdateIssueInput struct {
 	Title           *string
 	RepeatThreshold *int
+	RepeatLimit     *int
 }
 
 func (s *IssueService) UpdateIssue(ctx context.Context, issueID string, in UpdateIssueInput) (issue.Issue, error) {
@@ -146,10 +164,42 @@ func (s *IssueService) UpdateIssue(ctx context.Context, issueID string, in Updat
 		v := *in.RepeatThreshold
 		thr = &v
 	}
-	if title == nil && thr == nil {
+	var repLimit *int
+	if in.RepeatLimit != nil {
+		if *in.RepeatLimit < 0 {
+			return issue.Issue{}, validation("repeat_limit must be >= 0")
+		}
+		v := *in.RepeatLimit
+		repLimit = &v
+	}
+	if title == nil && thr == nil && repLimit == nil {
 		return issue.Issue{}, validation("no fields to update")
 	}
-	it, err := s.iss.UpdateIssue(ctx, issueID, title, thr)
+
+	// no duplicates on rename (trim + case-insensitive)
+	if title != nil {
+		current, err := s.iss.GetIssue(ctx, issueID)
+		if err != nil {
+			if err == repository.ErrNotFound {
+				return issue.Issue{}, notFound("issue not found", err)
+			}
+			return issue.Issue{}, err
+		}
+		existing, err := s.iss.ListIssuesByPair(ctx, current.PairID, nil)
+		if err != nil {
+			return issue.Issue{}, err
+		}
+		for _, it := range existing {
+			if it.ID == issueID {
+				continue
+			}
+			if strings.EqualFold(strings.TrimSpace(it.Title), strings.TrimSpace(*title)) {
+				return issue.Issue{}, conflict("issue title already exists", nil)
+			}
+		}
+	}
+
+	it, err := s.iss.UpdateIssue(ctx, issueID, title, thr, repLimit)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return issue.Issue{}, notFound("issue not found", err)
@@ -176,6 +226,9 @@ func (s *IssueService) Repeat(ctx context.Context, issueID, userID string, note 
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return issue.Issue{}, notFound("issue not found", err)
+		}
+		if err == repository.ErrConflict {
+			return issue.Issue{}, conflict("repeat limit reached", err)
 		}
 		return issue.Issue{}, err
 	}

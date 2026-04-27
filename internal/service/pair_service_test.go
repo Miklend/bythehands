@@ -50,6 +50,9 @@ func (f fakePairsRepo) ArchivePair(ctx context.Context, pairID string) (pair.Pai
 func (f fakePairsRepo) SetWelcomeMessage(ctx context.Context, pairID string, text *string) (pair.Pair, error) {
 	return pair.Pair{}, nil
 }
+func (f fakePairsRepo) SetMemberName(ctx context.Context, pairID, userID string, name *string) (pair.PairMember, error) {
+	return pair.PairMember{}, nil
+}
 
 type fakeInvitesRepo struct {
 	create func(ctx context.Context, pairID, token string, expiresAt time.Time) (pair.Invite, error)

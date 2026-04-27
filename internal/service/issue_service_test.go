@@ -44,7 +44,7 @@ func (f fakeIssueRepo) CreateRepeatDisagreement(ctx context.Context, repeatID, u
 func (f fakeIssueRepo) GetRepeatDisagreement(ctx context.Context, repeatID, userID string) (issue.IssueRepeatDisagreement, error) {
 	return issue.IssueRepeatDisagreement{}, repository.ErrNotFound
 }
-func (f fakeIssueRepo) UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int) (issue.Issue, error) {
+func (f fakeIssueRepo) UpdateIssue(ctx context.Context, issueID string, title *string, repeatThreshold *int, repeatLimit *int) (issue.Issue, error) {
 	return issue.Issue{}, nil
 }
 func (f fakeIssueRepo) UpdateStatus(ctx context.Context, issueID string, status issue.Status) (issue.Issue, error) {
@@ -77,6 +77,9 @@ func (f fakePairsRepoRead) ArchivePair(ctx context.Context, pairID string) (pair
 }
 func (f fakePairsRepoRead) SetWelcomeMessage(ctx context.Context, pairID string, text *string) (pair.Pair, error) {
 	return pair.Pair{}, nil
+}
+func (f fakePairsRepoRead) SetMemberName(ctx context.Context, pairID, userID string, name *string) (pair.PairMember, error) {
+	return pair.PairMember{}, nil
 }
 
 func TestIssueService_CreateIssue_Defaults(t *testing.T) {

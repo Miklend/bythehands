@@ -19,20 +19,22 @@ type ConversationService struct {
 }
 
 type StartConversationInput struct {
-	IssueID    string
-	PairID     string
-	Goal       *string
-	Questions  *string
-	StartState *string
+	IssueID            string
+	PairID             string
+	Goal               *string
+	Questions          *string
+	StartState         *string
+	RuleViolationLimit int
 }
 
 type FinishConversationInput struct {
-	ResultStatus  conversation.ResultStatus
-	ResultText    *string
-	EndState      *string
-	EndedEarly    bool
-	EndedByUserID *string
-	EndReason     *string
+	ResultStatus    conversation.ResultStatus
+	ResultText      *string
+	EndState        *string
+	EndedEarly      bool
+	EndedByUserID   *string
+	EndedInitiative *string
+	EndReason       *string
 }
 
 func NewConversationService(users repository.UserRepository, pairs repository.PairRepository, iss repository.IssueRepository, conv repository.ConversationRepository) *ConversationService {
@@ -91,13 +93,17 @@ func (s *ConversationService) Start(ctx context.Context, in StartConversationInp
 			startState = &ss
 		}
 	}
+	if in.RuleViolationLimit < 0 {
+		return conversation.Session{}, validation("rule_violation_limit must be >= 0")
+	}
 
 	return s.conv.StartSession(ctx, conversation.Session{
-		IssueID:    in.IssueID,
-		PairID:     in.PairID,
-		Goal:       goal,
-		Questions:  questions,
-		StartState: startState,
+		IssueID:            in.IssueID,
+		PairID:             in.PairID,
+		Goal:               goal,
+		Questions:          questions,
+		StartState:         startState,
+		RuleViolationLimit: in.RuleViolationLimit,
 	})
 }
 
@@ -126,6 +132,7 @@ func (s *ConversationService) Finish(ctx context.Context, conversationID string,
 	}
 
 	var endedBy *string
+	var endedInitiative *string
 	var endReason *string
 	if in.EndedEarly {
 		if in.EndedByUserID == nil || !validateUUID(*in.EndedByUserID) {
@@ -138,6 +145,15 @@ func (s *ConversationService) Finish(ctx context.Context, conversationID string,
 			return conversation.Session{}, err
 		}
 		endedBy = in.EndedByUserID
+		if in.EndedInitiative == nil {
+			return conversation.Session{}, validation("ended_initiative is required")
+		}
+		switch strings.TrimSpace(*in.EndedInitiative) {
+		case "self", "partner", "both":
+		default:
+			return conversation.Session{}, validation("invalid ended_initiative")
+		}
+		endedInitiative = in.EndedInitiative
 		if in.EndReason != nil {
 			r := strings.TrimSpace(*in.EndReason)
 			if r == "" {
@@ -149,7 +165,7 @@ func (s *ConversationService) Finish(ctx context.Context, conversationID string,
 		}
 	}
 
-	sess, err := s.conv.FinishSession(ctx, conversationID, in.ResultStatus, text, endState, s.now(), in.EndedEarly, endedBy, endReason)
+	sess, err := s.conv.FinishSession(ctx, conversationID, in.ResultStatus, text, endState, s.now(), in.EndedEarly, endedBy, endedInitiative, endReason)
 	if err != nil {
 		if err == repository.ErrNotFound {
 			return conversation.Session{}, notFound("conversation not found", err)
@@ -313,6 +329,62 @@ type AddSideIssueInput struct {
 	CreatedByUserID string
 	Title           string
 	Description     string
+}
+
+func (s *ConversationService) AddRuleViolation(ctx context.Context, conversationID, userID, ruleCode, note string) error {
+	if !validateUUID(conversationID) {
+		return validation("invalid conversation_id")
+	}
+	if !validateUUID(userID) {
+		return validation("invalid user_id")
+	}
+	ruleCode = strings.TrimSpace(ruleCode)
+	if ruleCode == "" {
+		return validation("rule_code is required")
+	}
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return validation("note is required")
+	}
+	if _, err := s.users.GetByID(ctx, userID); err != nil {
+		if err == repository.ErrNotFound {
+			return notFound("user not found", err)
+		}
+		return err
+	}
+	sess, err := s.Get(ctx, conversationID)
+	if err != nil {
+		return err
+	}
+	if sess.Status == conversation.StatusFinished || sess.Status == conversation.StatusCancelled {
+		return conflict("conversation is finished", nil)
+	}
+	if sess.RuleViolationLimit > 0 {
+		cnt, err := s.conv.CountRuleViolations(ctx, conversationID)
+		if err != nil {
+			return err
+		}
+		if cnt >= sess.RuleViolationLimit {
+			return conflict("rule violations limit reached", nil)
+		}
+	}
+	if err := s.conv.AddRuleViolation(ctx, conversationID, userID, ruleCode, note); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ConversationService) ListRuleViolations(ctx context.Context, conversationID string, limit, offset int) ([]conversation.RuleViolation, error) {
+	if !validateUUID(conversationID) {
+		return nil, validation("invalid conversation_id")
+	}
+	if limit < 0 || offset < 0 {
+		return nil, validation("invalid pagination")
+	}
+	if _, err := s.Get(ctx, conversationID); err != nil {
+		return nil, err
+	}
+	return s.conv.ListRuleViolations(ctx, conversationID, limit, offset)
 }
 
 func (s *ConversationService) AddSideIssue(ctx context.Context, in AddSideIssueInput) (string, error) {

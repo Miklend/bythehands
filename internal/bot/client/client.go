@@ -96,6 +96,18 @@ func (c *Client) GetPair(ctx context.Context, pairID string) (Pair, []PairMember
 	return p, members, nil
 }
 
+func (c *Client) SetMemberName(ctx context.Context, pairID, userID, name string) (PairMember, error) {
+	var env Envelope[PairMember]
+	body := map[string]any{"user_id": userID, "name": name}
+	if err := c.patch(ctx, "/api/v1/pairs/"+pairID+"/member-name", body, &env); err != nil {
+		return PairMember{}, err
+	}
+	if env.Error != nil {
+		return PairMember{}, fmt.Errorf("api error: %s: %s", env.Error.Code, env.Error.Message)
+	}
+	return env.Data, nil
+}
+
 func (c *Client) JoinInvite(ctx context.Context, token string, userID string) (Pair, []PairMember, error) {
 	var env Envelope[map[string]any]
 	if err := c.post(ctx, "/api/v1/invites/"+token+"/join", map[string]string{"user_id": userID}, &env); err != nil {
@@ -177,6 +189,7 @@ type CreateIssueRequest struct {
 	Priority        string `json:"priority"`
 	Visibility      string `json:"visibility"`
 	RepeatThreshold int    `json:"repeat_threshold"`
+	RepeatLimit     int    `json:"repeat_limit"`
 }
 
 func (c *Client) CreateIssue(ctx context.Context, pairID string, req CreateIssueRequest) (Issue, error) {
@@ -219,6 +232,7 @@ func (c *Client) GetIssue(ctx context.Context, issueID string) (Issue, error) {
 type UpdateIssueRequest struct {
 	Title           *string `json:"title,omitempty"`
 	RepeatThreshold *int    `json:"repeat_threshold,omitempty"`
+	RepeatLimit     *int    `json:"repeat_limit,omitempty"`
 }
 
 func (c *Client) UpdateIssue(ctx context.Context, issueID string, req UpdateIssueRequest) (Issue, error) {
@@ -313,9 +327,9 @@ func (c *Client) DeleteRepeat(ctx context.Context, repeatID string) error {
 	return nil
 }
 
-func (c *Client) StartConversation(ctx context.Context, issueID, pairID string, goal, questions, startState *string) (ConversationSession, error) {
+func (c *Client) StartConversation(ctx context.Context, issueID, pairID string, goal, questions, startState *string, ruleViolationLimit int) (ConversationSession, error) {
 	var env Envelope[ConversationSession]
-	body := map[string]any{"pair_id": pairID, "goal": goal, "questions": questions, "start_state": startState}
+	body := map[string]any{"pair_id": pairID, "goal": goal, "questions": questions, "start_state": startState, "rule_violation_limit": ruleViolationLimit}
 	if err := c.post(ctx, "/api/v1/issues/"+issueID+"/conversations", body, &env); err != nil {
 		return ConversationSession{}, err
 	}
@@ -348,12 +362,13 @@ func (c *Client) ResumeConversation(ctx context.Context, conversationID string) 
 }
 
 type FinishConversationRequest struct {
-	ResultStatus  string  `json:"result_status"`
-	ResultText    *string `json:"result_text"`
-	EndState      *string `json:"end_state"`
-	EndedEarly    bool    `json:"ended_early,omitempty"`
-	EndedByUserID *string `json:"ended_by_user_id,omitempty"`
-	EndReason     *string `json:"end_reason,omitempty"`
+	ResultStatus    string  `json:"result_status"`
+	ResultText      *string `json:"result_text"`
+	EndState        *string `json:"end_state"`
+	EndedEarly      bool    `json:"ended_early,omitempty"`
+	EndedByUserID   *string `json:"ended_by_user_id,omitempty"`
+	EndedInitiative *string `json:"ended_initiative,omitempty"`
+	EndReason       *string `json:"end_reason,omitempty"`
 }
 
 func (c *Client) FinishConversation(ctx context.Context, conversationID string, req FinishConversationRequest) (ConversationSession, error) {
@@ -388,6 +403,30 @@ func (c *Client) DeleteConversationNote(ctx context.Context, noteID string) erro
 		return fmt.Errorf("api error: %s: %s", env.Error.Code, env.Error.Message)
 	}
 	return nil
+}
+
+func (c *Client) AddConversationRuleViolation(ctx context.Context, conversationID, userID, ruleCode, note string) error {
+	var env Envelope[map[string]string]
+	body := map[string]any{"user_id": userID, "rule_code": ruleCode, "note": note}
+	if err := c.post(ctx, "/api/v1/conversations/"+conversationID+"/rule-violations", body, &env); err != nil {
+		return err
+	}
+	if env.Error != nil {
+		return fmt.Errorf("api error: %s: %s", env.Error.Code, env.Error.Message)
+	}
+	return nil
+}
+
+func (c *Client) ListConversationRuleViolations(ctx context.Context, conversationID string, limit int) ([]ConversationRuleViolation, error) {
+	path := fmt.Sprintf("/api/v1/conversations/%s/rule-violations?limit=%d", conversationID, limit)
+	var env Envelope[[]ConversationRuleViolation]
+	if err := c.get(ctx, path, &env); err != nil {
+		return nil, err
+	}
+	if env.Error != nil {
+		return nil, fmt.Errorf("api error: %s: %s", env.Error.Code, env.Error.Message)
+	}
+	return env.Data, nil
 }
 
 type AddSideIssueRequest struct {

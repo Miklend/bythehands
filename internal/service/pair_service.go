@@ -202,6 +202,57 @@ func (s *PairService) SetWelcomeMessage(ctx context.Context, pairID string, user
 	return updated, nil
 }
 
+func (s *PairService) SetMemberName(ctx context.Context, pairID string, userID string, name string) (pair.PairMember, error) {
+	if !validateUUID(pairID) {
+		return pair.PairMember{}, validation("invalid pair_id")
+	}
+	if !validateUUID(userID) {
+		return pair.PairMember{}, validation("invalid user_id")
+	}
+	if _, err := s.users.GetByID(ctx, userID); err != nil {
+		if err == repository.ErrNotFound {
+			return pair.PairMember{}, notFound("user not found", err)
+		}
+		return pair.PairMember{}, err
+	}
+	p, err := s.pairs.GetPair(ctx, pairID)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			return pair.PairMember{}, notFound("pair not found", err)
+		}
+		return pair.PairMember{}, err
+	}
+	if p.Status != pair.StatusActive {
+		return pair.PairMember{}, validation("pair is not active")
+	}
+	clean := strings.TrimSpace(name)
+	if clean == "" {
+		return pair.PairMember{}, validation("name is required")
+	}
+	members, err := s.pairs.GetMembers(ctx, pairID)
+	if err != nil {
+		return pair.PairMember{}, err
+	}
+	isMember := false
+	for _, m := range members {
+		if m.UserID == userID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return pair.PairMember{}, forbidden("user is not member of pair", nil)
+	}
+	updated, err := s.pairs.SetMemberName(ctx, pairID, userID, &clean)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			return pair.PairMember{}, notFound("pair member not found", err)
+		}
+		return pair.PairMember{}, err
+	}
+	return updated, nil
+}
+
 func (s *PairService) GetPair(ctx context.Context, pairID string) (pair.Pair, []pair.PairMember, error) {
 	if !validateUUID(pairID) {
 		return pair.Pair{}, nil, validation("invalid pair_id")

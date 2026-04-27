@@ -145,6 +145,7 @@ func (a *App) showTopics(ctx context.Context, sess *Session, chatID int64, messa
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Новая тема", cbIssueNew),
+			tgbotapi.NewInlineKeyboardButtonData("🔎 Поиск", cbTopicsSearch),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Назад", cbMenu),
@@ -272,9 +273,10 @@ func (a *App) finishAddIssue(ctx context.Context, sess *Session, chatID int64, m
 		Priority:        sess.AddIssuePriority,
 		Visibility:      vis,
 		RepeatThreshold: thr,
+		RepeatLimit:     0,
 	})
 	if err != nil {
-		a.editOrSend(chatID, messageID, "Не получилось создать тему. Попробуй позже.", backMenuKeyboard())
+		a.editOrSend(chatID, messageID, "Не получилось создать тему. Возможно, тема с таким названием уже есть.", backMenuKeyboard())
 		return
 	}
 
@@ -296,6 +298,12 @@ func (a *App) showIssue(ctx context.Context, sess *Session, chatID int64, messag
 		last = &t
 	}
 	text := a.formatIssueCard(it, last)
+	if last != nil {
+		days := int(time.Since(*last).Hours() / 24)
+		if days >= 60 && it.Status == "active" {
+			text += fmt.Sprintf("\n\nТема давно не повторялась (%d дней). Можно удалить.", days)
+		}
+	}
 	a.editOrSend(chatID, messageID, text, issueCardKeyboard(issueID, it.Status))
 }
 
@@ -305,10 +313,13 @@ func (a *App) showIssueSettings(ctx context.Context, sess *Session, chatID int64
 		a.editOrSend(chatID, messageID, "Не получилось открыть настройки темы.", backMenuKeyboard())
 		return
 	}
-	text := fmt.Sprintf("Настройки темы\n\nТема: %s\nЛимит повторений: %d", it.Title, it.RepeatThreshold)
+	text := fmt.Sprintf("Настройки темы\n\nТема: %s\nЛимит показа (после повторений): %d\nЛимит повторений: %d", it.Title, it.RepeatThreshold, it.RepeatLimit)
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("✏️ Переименовать", cbIssueRenamePrefix+issueID)),
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔁 Лимит повторений", cbIssueRepeatLimitPrefix+issueID)),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👁 Лимит показа", cbIssueShowLimitPrefix+issueID),
+			tgbotapi.NewInlineKeyboardButtonData("🔁 Лимит повторений", cbIssueRepeatLimitPrefix+issueID),
+		),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbIssueOpenPrefix+issueID)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("В меню", cbMenu)),
 	)
@@ -423,6 +434,7 @@ func (a *App) startFocusForIssue(ctx context.Context, sess *Session, chatID int6
 	sess.FocusQuestions = ""
 	sess.FocusStartStateSelf = ""
 	sess.FocusStartStatePartner = ""
+	sess.FocusRuleLimit = 0
 	sess.State = StateFocusGoal
 	a.askFocusGoal(chatID, messageID)
 }
@@ -437,15 +449,18 @@ func (a *App) showFocusPlan(ctx context.Context, sess *Session, chatID int64, me
 		a.editOrSend(chatID, messageID, "Не получилось открыть тему.", backMenuKeyboard())
 		return
 	}
+	selfName, partnerName := a.pairNames(ctx, sess)
 	startState := "—"
 	if strings.TrimSpace(sess.FocusStartStateSelf) != "" || strings.TrimSpace(sess.FocusStartStatePartner) != "" {
-		startState = fmt.Sprintf("Я: %s; Партнер: %s", strings.TrimSpace(sess.FocusStartStateSelf), strings.TrimSpace(sess.FocusStartStatePartner))
+		startState = fmt.Sprintf("%s: %s; %s: %s", selfName, strings.TrimSpace(sess.FocusStartStateSelf), partnerName, strings.TrimSpace(sess.FocusStartStatePartner))
 	}
-	text := fmt.Sprintf("План разговора.\n\nТема: %s\nЦель: %s\nВопросы: %s\nСостояние на старте: %s",
+	text := fmt.Sprintf("План разговора.\n\nТема: %s\nЦель: %s\nВопросы: %s\nСостояние на старте: %s\nЛимит нарушений правил: %d\n\nПравила разговора:\n%s",
 		issueItem.Title,
 		sess.FocusGoal,
 		sess.FocusQuestions,
 		startState,
+		sess.FocusRuleLimit,
+		focusRulesText(),
 	)
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("▶️ Начать разговор", cbFocusBegin)),
@@ -462,8 +477,9 @@ func (a *App) beginConversation(ctx context.Context, sess *Session, chatID int64
 	}
 	goal := sess.FocusGoal
 	questions := sess.FocusQuestions
-	startState := fmt.Sprintf("Я: %s; Партнер: %s", strings.TrimSpace(sess.FocusStartStateSelf), strings.TrimSpace(sess.FocusStartStatePartner))
-	cs, err := a.api.StartConversation(ctx, sess.FocusIssueID, *sess.CurrentPairID, &goal, &questions, &startState)
+	selfName, partnerName := a.pairNames(ctx, sess)
+	startState := fmt.Sprintf("%s: %s; %s: %s", selfName, strings.TrimSpace(sess.FocusStartStateSelf), partnerName, strings.TrimSpace(sess.FocusStartStatePartner))
+	cs, err := a.api.StartConversation(ctx, sess.FocusIssueID, *sess.CurrentPairID, &goal, &questions, &startState, sess.FocusRuleLimit)
 	if err != nil {
 		a.editOrSend(chatID, messageID, "Не получилось начать разговор. Попробуй позже.", backMenuKeyboard())
 		return
@@ -513,6 +529,38 @@ func (a *App) resumeConversation(ctx context.Context, sess *Session, chatID int6
 	a.showActiveConversation(ctx, sess, chatID, messageID)
 }
 
+func (a *App) showConversationRepeats(ctx context.Context, sess *Session, chatID int64, messageID int, conversationID string) {
+	cs, err := a.api.GetConversation(ctx, conversationID)
+	if err != nil {
+		a.editOrSend(chatID, messageID, "Не получилось открыть разговор.", backMenuKeyboard())
+		return
+	}
+	reps, err := a.api.ListRepeats(ctx, cs.IssueID, 10)
+	if err != nil {
+		a.editOrSend(chatID, messageID, "Не получилось загрузить повторения.", backKeyboard(cbConvBackToActive))
+		return
+	}
+	iss, _ := a.api.GetIssue(ctx, cs.IssueID)
+	var b strings.Builder
+	b.WriteString("Повторения по теме:\n\n")
+	b.WriteString("Тема: " + iss.Title + "\n\n")
+	if len(reps) == 0 {
+		b.WriteString("Пока нет повторений.")
+	} else {
+		for i, r := range reps {
+			n := ""
+			if r.Note != nil {
+				n = *r.Note
+			}
+			fmt.Fprintf(&b, "%d) %s\n%s\n\n", i+1, r.CreatedAt.Format("2006-01-02 15:04"), n)
+		}
+	}
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbConvBackToActive)),
+	)
+	a.editOrSend(chatID, messageID, b.String(), &kb)
+}
+
 func (a *App) finishConversationEarly(ctx context.Context, sess *Session, chatID int64, messageID int) {
 	if sess.ConversationID == "" {
 		a.editOrSend(chatID, messageID, "Нет активного разговора.", backToMenuKeyboard())
@@ -520,11 +568,17 @@ func (a *App) finishConversationEarly(ctx context.Context, sess *Session, chatID
 	}
 	reasonLabel := earlyEndReasonLabel(sess.EarlyEndReason)
 	reason := reasonLabel
+	initiative := strings.TrimSpace(sess.EarlyEndInitiative)
+	if initiative == "" {
+		a.editOrSend(chatID, messageID, "По чьей инициативе завершаем?", earlyInitiativeKeyboard())
+		return
+	}
 	cs, err := a.api.FinishConversation(ctx, sess.ConversationID, client.FinishConversationRequest{
-		ResultStatus:  "postponed",
-		EndedEarly:    true,
-		EndedByUserID: &sess.APIUserID,
-		EndReason:     &reason,
+		ResultStatus:    "postponed",
+		EndedEarly:      true,
+		EndedByUserID:   &sess.APIUserID,
+		EndedInitiative: &initiative,
+		EndReason:       &reason,
 	})
 	if err != nil {
 		a.editOrSend(chatID, messageID, "Не получилось завершить разговор досрочно.", backMenuKeyboard())
@@ -533,12 +587,13 @@ func (a *App) finishConversationEarly(ctx context.Context, sess *Session, chatID
 	_, _ = a.api.UpdateIssueStatus(ctx, cs.IssueID, "postponed")
 	sess.State = StateIdle
 	sess.EarlyEndReason = ""
+	sess.EarlyEndInitiative = ""
 	sess.ConversationID = ""
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Открыть тему", cbIssueOpenPrefix+cs.IssueID)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("История", cbNavHistory)),
 	)
-	a.editOrSend(chatID, messageID, "Разговор завершен досрочно.\nПричина: "+reasonLabel, &kb)
+	a.editOrSend(chatID, messageID, "Разговор завершен досрочно.\nИнициатива: "+endedInitiativeLabel(initiative)+"\nПричина: "+reasonLabel, &kb)
 }
 
 func (a *App) showHistory(ctx context.Context, sess *Session, chatID int64, messageID int) {
@@ -614,6 +669,7 @@ func (a *App) openHistoryConversation(ctx context.Context, sess *Session, chatID
 	iss, _ := a.api.GetIssue(ctx, cs.IssueID)
 	notes, _ := a.api.ListConversationNotes(ctx, conversationID, 20)
 	side, _ := a.api.ListConversationSideIssues(ctx, conversationID)
+	viol, _ := a.api.ListConversationRuleViolations(ctx, conversationID, 50)
 	rs := ""
 	if cs.ResultStatus != nil {
 		rs = resultStatusLabel(*cs.ResultStatus)
@@ -640,27 +696,24 @@ func (a *App) openHistoryConversation(ctx context.Context, sess *Session, chatID
 	}
 	early := ""
 	if cs.EndedEarly {
-		who := "—"
-		if cs.EndedByUserID != nil && strings.TrimSpace(*cs.EndedByUserID) != "" {
-			if strings.TrimSpace(*cs.EndedByUserID) == strings.TrimSpace(sess.APIUserID) {
-				who = "Я"
-			} else {
-				who = "Партнер"
-			}
+		initiative := "—"
+		if cs.EndedInitiative != nil {
+			initiative = endedInitiativeLabel(*cs.EndedInitiative)
 		}
 		reason := "—"
 		if cs.EndReason != nil && strings.TrimSpace(*cs.EndReason) != "" {
 			reason = strings.TrimSpace(*cs.EndReason)
 		}
-		early = fmt.Sprintf("\nДосрочно завершено: да\nКто: %s\nПочему: %s", who, reason)
+		early = fmt.Sprintf("\nДосрочно завершено: да\nИнициатива: %s\nПочему: %s", initiative, reason)
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "Разговор\n\nДата: %s\nТема: %s\nЦель: %s\nВопросы: %s\nСостояние на старте: %s\nСостояние в конце: %s\nИтог: %s%s\n\n%s",
+	fmt.Fprintf(&b, "Разговор\n\nДата: %s\nТема: %s\nЦель: %s\nВопросы: %s\nЛимит нарушений правил: %d\nСостояние на старте: %s\nСостояние в конце: %s\nИтог: %s%s\n\n%s",
 		cs.CreatedAt.Format("2006-01-02 15:04"),
 		iss.Title,
 		goal,
 		qs,
+		cs.RuleViolationLimit,
 		ss,
 		es,
 		rs,
@@ -677,6 +730,12 @@ func (a *App) openHistoryConversation(ctx context.Context, sess *Session, chatID
 		b.WriteString("\n\nПобочные темы:\n")
 		for _, it := range side {
 			fmt.Fprintf(&b, "• %s\n", it.Title)
+		}
+	}
+	if len(viol) > 0 {
+		b.WriteString("\n\nНарушения правил:\n")
+		for _, v := range viol {
+			fmt.Fprintf(&b, "• %s — %s\n", v.CreatedAt.Format("2006-01-02 15:04"), v.Note)
 		}
 	}
 	kb := tgbotapi.NewInlineKeyboardMarkup(
@@ -734,7 +793,7 @@ func (a *App) showSettings(ctx context.Context, sess *Session, chatID int64, mes
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Инструкция", cbHowTo)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Правила использования", "settings:rules")),
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Моя пара", "settings:pair")),
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Пара", "settings:pair")),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Поделиться ссылкой", cbSettingsShare)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbMenu)),
 	)
@@ -757,9 +816,10 @@ func (a *App) showPairSpaces(ctx context.Context, sess *Session, chatID int64, m
 	}
 
 	var b strings.Builder
-	b.WriteString("Моя пара / пространства:\n\n")
+	b.WriteString("Пара / пространства:\n\n")
 	var rows [][]tgbotapi.InlineKeyboardButton
 	seenTest := false
+	seenMain := false
 	for _, p := range pairs {
 		if p.Status != "active" {
 			continue
@@ -770,9 +830,13 @@ func (a *App) showPairSpaces(ctx context.Context, sess *Session, chatID int64, m
 			}
 			seenTest = true
 		}
-		label := p.ID
+		label := "Пара"
 		if p.IsTest {
 			label = "Тестовое пространство"
+		} else if seenMain {
+			continue
+		} else {
+			seenMain = true
 		}
 		active := ""
 		if sess.CurrentPairID != nil && *sess.CurrentPairID == p.ID {
@@ -817,14 +881,18 @@ func (a *App) sharePairLink(ctx context.Context, sess *Session, chatID int64, me
 		welcome = strings.TrimSpace(*p.WelcomeMessage)
 	}
 
+	selfName, partnerName := a.pairNames(ctx, sess)
+	namesLine := fmt.Sprintf("Имена:\n%s и %s", selfName, partnerName)
+
 	text := "Поделиться ссылкой:\n\nСсылка для партнера:\n" + link + "\n\nПриветствие партнеру (покажется после подключения):\n" + welcome
 	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("✏️ Мое имя", cbPairMyName)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("✏️ Приветствие", cbPairWelcome)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🔄 Обновить ссылку", cbSettingsShare)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbNavSettings)),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("В меню", cbMenu)),
 	)
-	a.editOrSend(chatID, messageID, text, &kb)
+	a.editOrSend(chatID, messageID, text+"\n\n"+namesLine, &kb)
 }
 
 func (a *App) showTestMode(ctx context.Context, sess *Session, chatID int64, messageID int) {
@@ -885,6 +953,8 @@ func (a *App) cancelFlow(ctx context.Context, sess *Session, chatID int64, messa
 	sess.PendingInviteToken = ""
 	sess.SideIssueTitle = ""
 	sess.EarlyEndReason = ""
+	sess.EarlyEndInitiative = ""
+	sess.PendingRuleCode = ""
 	sess.AddIssueTitle = ""
 	sess.AddIssueDescription = ""
 	sess.AddIssuePriority = ""
@@ -923,6 +993,23 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 	}
 
 	switch sess.State {
+	case StatePairMyName:
+		if strings.TrimSpace(text) == "" {
+			a.sendText(msg.Chat.ID, "Напиши имя текстом.", backKeyboard(cbSettingsShare))
+			return
+		}
+		if err := a.refreshCurrentPair(ctx, sess); err != nil || sess.CurrentPairID == nil || sess.CurrentPairIsTest {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Сначала выбери основное пространство.", nil)
+			return
+		}
+		if _, err := a.api.SetMemberName(ctx, *sess.CurrentPairID, sess.APIUserID, text); err != nil {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Не получилось сохранить имя.", backMenuKeyboard())
+			return
+		}
+		sess.State = StateIdle
+		a.sharePairLink(ctx, sess, msg.Chat.ID, 0)
 	case StatePairWelcome:
 		if strings.TrimSpace(text) == "" {
 			a.sendText(msg.Chat.ID, "Напиши текст приветствия.", backKeyboard(cbSettingsShare))
@@ -964,10 +1051,29 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 			a.sendText(msg.Chat.ID, "Нужен формат числа (например 0, 1, 2...).", backKeyboard(cbIssueSettingsPrefix+sess.CurrentIssueID))
 			return
 		}
-		it, err := a.api.UpdateIssue(ctx, sess.CurrentIssueID, client.UpdateIssueRequest{RepeatThreshold: &limit})
+		it, err := a.api.UpdateIssue(ctx, sess.CurrentIssueID, client.UpdateIssueRequest{RepeatLimit: &limit})
 		if err != nil {
 			sess.State = StateIdle
 			a.sendText(msg.Chat.ID, "Не получилось обновить лимит повторений.", backMenuKeyboard())
+			return
+		}
+		sess.State = StateIdle
+		a.showIssueSettings(ctx, sess, msg.Chat.ID, 0, it.ID)
+	case StateIssueShowLimit:
+		val := strings.TrimSpace(text)
+		if val == "" {
+			a.sendText(msg.Chat.ID, "Напиши число.", backKeyboard(cbIssueSettingsPrefix+sess.CurrentIssueID))
+			return
+		}
+		limit, ok := parsePositiveInt(val)
+		if !ok {
+			a.sendText(msg.Chat.ID, "Нужен формат числа (например 0, 1, 2...).", backKeyboard(cbIssueSettingsPrefix+sess.CurrentIssueID))
+			return
+		}
+		it, err := a.api.UpdateIssue(ctx, sess.CurrentIssueID, client.UpdateIssueRequest{RepeatThreshold: &limit})
+		if err != nil {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Не получилось обновить лимит показа.", backMenuKeyboard())
 			return
 		}
 		sess.State = StateIdle
@@ -995,6 +1101,15 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 		}
 		it, err := a.api.RepeatIssue(ctx, sess.CurrentIssueID, sess.APIUserID, text)
 		if err != nil {
+			if strings.Contains(err.Error(), "conflict") {
+				kb := tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Начать фокус", cbFocusStartPrefix+sess.CurrentIssueID)),
+					tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Открыть тему", cbIssueOpenPrefix+sess.CurrentIssueID)),
+				)
+				a.sendText(msg.Chat.ID, "Лимит повторений достигнут. Лучше обсудить в фокусе.", &kb)
+				sess.State = StateIdle
+				return
+			}
 			a.sendText(msg.Chat.ID, "Не получилось зафиксировать повторение. Попробуй позже.", backMenuKeyboard())
 			sess.State = StateIdle
 			return
@@ -1017,6 +1132,15 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 		sess.PendingForwardText = ""
 		it, err := a.api.RepeatIssue(ctx, sess.CurrentIssueID, sess.APIUserID, note)
 		if err != nil {
+			if strings.Contains(err.Error(), "conflict") {
+				kb := tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Начать фокус", cbFocusStartPrefix+sess.CurrentIssueID)),
+					tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Открыть тему", cbIssueOpenPrefix+sess.CurrentIssueID)),
+				)
+				a.sendText(msg.Chat.ID, "Лимит повторений достигнут. Лучше обсудить в фокусе.", &kb)
+				sess.State = StateIdle
+				return
+			}
 			a.sendText(msg.Chat.ID, "Не получилось зафиксировать повторение. Попробуй позже.", backMenuKeyboard())
 			sess.State = StateIdle
 			return
@@ -1040,6 +1164,48 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 		}
 		sess.State = StateIdle
 		a.sendText(msg.Chat.ID, "Позиция сохранена.", backMenuKeyboard())
+	case StateTopicsSearch:
+		q := strings.TrimSpace(text)
+		if q == "" {
+			a.sendText(msg.Chat.ID, "Напиши запрос текстом.", backKeyboard(cbTopics))
+			return
+		}
+		if err := a.refreshCurrentPair(ctx, sess); err != nil || sess.CurrentPairID == nil {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Сначала создай пару или включи тестовый режим.", noPairKeyboard())
+			return
+		}
+		items, err := a.api.ListIssues(ctx, *sess.CurrentPairID, "")
+		if err != nil {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Не получилось выполнить поиск.", backMenuKeyboard())
+			return
+		}
+		qLower := strings.ToLower(q)
+		var filtered []client.Issue
+		for _, it := range items {
+			if strings.Contains(strings.ToLower(it.Title), qLower) {
+				filtered = append(filtered, it)
+			}
+		}
+		sess.State = StateIdle
+		if len(filtered) == 0 {
+			kb := tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbTopics)),
+			)
+			a.sendText(msg.Chat.ID, "Ничего не нашлось.", &kb)
+			return
+		}
+		var b strings.Builder
+		b.WriteString("Найдено:\n\n")
+		var rows [][]tgbotapi.InlineKeyboardButton
+		for _, it := range filtered {
+			fmt.Fprintf(&b, "• %s (%s)\n", it.Title, issueStatusLabel(it.Status))
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(it.Title, cbIssueOpenPrefix+it.ID)))
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Назад", cbTopics)))
+		kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
+		a.sendText(msg.Chat.ID, b.String(), &kb)
 	case StateFocusGoal:
 		if text == "" {
 			a.sendText(msg.Chat.ID, "Напиши цель текстом.", cancelKeyboard())
@@ -1056,6 +1222,20 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 		sess.FocusQuestions = text
 		sess.State = StateFocusStartStateSelf
 		a.sendText(msg.Chat.ID, "Состояние перед разговором.\n\nТвое состояние:", stateKeyboard(cbFocusStartStateSelfPrefix, "focus:back_questions"))
+	case StateFocusRuleLimit:
+		val := strings.TrimSpace(text)
+		if val == "" {
+			a.sendText(msg.Chat.ID, "Напиши число.", focusRuleLimitKeyboard())
+			return
+		}
+		limit, ok := parsePositiveInt(val)
+		if !ok {
+			a.sendText(msg.Chat.ID, "Нужен формат числа (например 0, 1, 2...).", focusRuleLimitKeyboard())
+			return
+		}
+		sess.FocusRuleLimit = limit
+		sess.State = StateFocusPlan
+		a.showFocusPlan(ctx, sess, msg.Chat.ID, 0)
 	case StateConvNote:
 		if text == "" {
 			a.sendText(msg.Chat.ID, "Напиши мысль текстом.", backKeyboard(cbConvBackToActive))
@@ -1110,21 +1290,42 @@ func (a *App) handleFSMText(ctx context.Context, sess *Session, msg *tgbotapi.Me
 		}
 		sess.State = StateIdle
 		a.sendText(msg.Chat.ID, "Побочная тема сохранена. Можно вернуться к разговору.", conversationKeyboard(sess.ConversationID, false))
+	case StateConvViolationNote:
+		if strings.TrimSpace(text) == "" {
+			a.sendText(msg.Chat.ID, "Нужен текст.", backKeyboard(cbConvBackToActive))
+			return
+		}
+		ruleCode := strings.TrimSpace(sess.PendingRuleCode)
+		if ruleCode == "" {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Сначала выбери правило.", conversationKeyboard(sess.ConversationID, false))
+			return
+		}
+		note := fmt.Sprintf("%s — %s", ruleViolationLabel(ruleCode), strings.TrimSpace(text))
+		if err := a.api.AddConversationRuleViolation(ctx, sess.ConversationID, sess.APIUserID, ruleCode, note); err != nil {
+			sess.State = StateIdle
+			a.sendText(msg.Chat.ID, "Не получилось сохранить нарушение. Возможно, достигнут лимит.", conversationKeyboard(sess.ConversationID, false))
+			return
+		}
+		sess.State = StateIdle
+		sess.PendingRuleCode = ""
+		a.sendText(msg.Chat.ID, "Нарушение записано.", conversationKeyboard(sess.ConversationID, false))
 	case StateConvEarlyOther:
 		if strings.TrimSpace(text) == "" {
 			a.sendText(msg.Chat.ID, "Нужен текст.", backKeyboard(cbConvBackToActive))
 			return
 		}
-		sess.State = StateIdle
 		sess.EarlyEndReason = "other:" + strings.TrimSpace(text)
-		a.finishConversationEarly(ctx, sess, msg.Chat.ID, 0)
+		sess.State = StateIdle
+		a.sendText(msg.Chat.ID, "По чьей инициативе завершаем?", earlyInitiativeKeyboard())
 	case StateFinishText:
 		if text == "" {
 			a.sendText(msg.Chat.ID, "Напиши итог текстом.", backKeyboard(cbFinishBackToStatus))
 			return
 		}
 		rt := text
-		endState := fmt.Sprintf("Я: %s; Партнер: %s", strings.TrimSpace(sess.FinishEndStateSelf), strings.TrimSpace(sess.FinishEndStatePartner))
+		selfName, partnerName := a.pairNames(ctx, sess)
+		endState := fmt.Sprintf("%s: %s; %s: %s", selfName, strings.TrimSpace(sess.FinishEndStateSelf), partnerName, strings.TrimSpace(sess.FinishEndStatePartner))
 		cs, err := a.api.FinishConversation(ctx, sess.ConversationID, client.FinishConversationRequest{
 			ResultStatus: sess.FinishResultStatus,
 			ResultText:   &rt,
@@ -1165,12 +1366,13 @@ func (a *App) formatIssueCard(it client.Issue, lastRepeat *time.Time) string {
 		lt := lastRepeat.In(time.Local)
 		last = lt.Format("2006-01-02 15:04")
 	}
-	return fmt.Sprintf("%s\n\nСтатус: %s\nВажность: %s\nПовторений: %d\nЛимит повторений: %d\nПоследний случай: %s",
+	return fmt.Sprintf("%s\n\nСтатус: %s\nВажность: %s\nПовторений: %d\nЛимит показа (после повторений): %d\nЛимит повторений: %d\nПоследний случай: %s",
 		it.Title,
 		issueStatusLabel(it.Status),
 		issuePriorityLabel(it.Priority),
 		it.RepeatCount,
 		it.RepeatThreshold,
+		it.RepeatLimit,
 		last,
 	)
 }
@@ -1243,6 +1445,72 @@ func earlyEndReasonLabel(code string) string {
 		return code
 	}
 	return "—"
+}
+
+func focusRulesText() string {
+	return "1) Говорим от себя (без обвинений)\n2) Не перебиваем\n3) Один вопрос — один ответ\n4) Если накрывает — пауза"
+}
+
+func ruleViolationLabel(code string) string {
+	switch strings.TrimSpace(code) {
+	case "i_messages":
+		return "Говорим от себя"
+	case "no_interrupt":
+		return "Не перебиваем"
+	case "one_question":
+		return "Один вопрос — один ответ"
+	case "need_break":
+		return "Нужна пауза"
+	default:
+		return code
+	}
+}
+
+func endedInitiativeLabel(code string) string {
+	switch strings.TrimSpace(code) {
+	case "self":
+		return "Я"
+	case "partner":
+		return "Партнер"
+	case "both":
+		return "Обоюдно"
+	default:
+		return code
+	}
+}
+
+func (a *App) pairNames(ctx context.Context, sess *Session) (selfName string, partnerName string) {
+	selfName = "Я"
+	partnerName = "Партнер"
+	if sess == nil || strings.TrimSpace(sess.APIUserID) == "" {
+		return selfName, partnerName
+	}
+	if sess.CurrentPairID == nil || strings.TrimSpace(*sess.CurrentPairID) == "" {
+		return selfName, partnerName
+	}
+	_, members, err := a.api.GetPair(ctx, *sess.CurrentPairID)
+	if err != nil {
+		return selfName, partnerName
+	}
+	for _, m := range members {
+		if strings.TrimSpace(m.UserID) == "" {
+			continue
+		}
+		name := ""
+		if m.CustomName != nil && strings.TrimSpace(*m.CustomName) != "" {
+			name = strings.TrimSpace(*m.CustomName)
+		}
+		if m.UserID == sess.APIUserID {
+			if name != "" {
+				selfName = name
+			}
+			continue
+		}
+		if name != "" {
+			partnerName = name
+		}
+	}
+	return selfName, partnerName
 }
 
 func issuePriorityLabel(priority string) string {

@@ -27,6 +27,7 @@ type createIssueRequest struct {
 	Priority        issue.Priority   `json:"priority"`
 	Visibility      issue.Visibility `json:"visibility"`
 	RepeatThreshold int              `json:"repeat_threshold"`
+	RepeatLimit     int              `json:"repeat_limit"`
 }
 
 func (h *IssuesHandler) CreateIssue(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +45,7 @@ func (h *IssuesHandler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			Priority:        req.Priority,
 			Visibility:      req.Visibility,
 			RepeatThreshold: req.RepeatThreshold,
+			RepeatLimit:     req.RepeatLimit,
 		})
 		if err != nil {
 			return err
@@ -85,6 +87,7 @@ func (h *IssuesHandler) GetIssue(w http.ResponseWriter, r *http.Request) {
 type updateIssueRequest struct {
 	Title           *string `json:"title"`
 	RepeatThreshold *int    `json:"repeat_threshold"`
+	RepeatLimit     *int    `json:"repeat_limit"`
 }
 
 func (h *IssuesHandler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +100,7 @@ func (h *IssuesHandler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		it, err := h.svc.UpdateIssue(r.Context(), issueID, service.UpdateIssueInput{
 			Title:           req.Title,
 			RepeatThreshold: req.RepeatThreshold,
+			RepeatLimit:     req.RepeatLimit,
 		})
 		if err != nil {
 			return err
