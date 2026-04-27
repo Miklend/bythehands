@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"taalkbout/internal/domain/pair"
-	"taalkbout/internal/domain/user"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/pair"
+	"talkabout/internal/domain/user"
+	"talkabout/internal/repository"
 )
 
 type fakeUsersRepo struct {

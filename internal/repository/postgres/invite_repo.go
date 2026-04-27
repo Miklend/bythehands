@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"taalkbout/internal/domain/pair"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/pair"
+	"talkabout/internal/repository"
 )
 
 type InviteRepo struct {

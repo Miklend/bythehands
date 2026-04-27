@@ -8,7 +8,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"taalkbout/internal/bot/client"
+	"talkabout/internal/bot/client"
 )
 
 type StartHandler struct {

@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"taalkbout/internal/domain/issue"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/issue"
+	"talkabout/internal/repository"
 )
 
 type IssueRepo struct {

@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"taalkbout/internal/domain/pair"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/pair"
+	"talkabout/internal/repository"
 )
 
 type PreferencesService struct {

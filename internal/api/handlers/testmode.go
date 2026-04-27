@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"taalkbout/internal/service"
+	"talkabout/internal/service"
 )
 
 type TestModeHandler struct {

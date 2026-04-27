@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"taalkbout/internal/repository"
+	"talkabout/internal/repository"
 )
 
 type PreferencesRepo struct {

@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"taalkbout/internal/api/routes"
-	"taalkbout/internal/config"
-	"taalkbout/internal/database"
-	"taalkbout/internal/logger"
-	"taalkbout/internal/repository/postgres"
-	"taalkbout/internal/service"
+	"talkabout/internal/api/routes"
+	"talkabout/internal/config"
+	"talkabout/internal/database"
+	"talkabout/internal/logger"
+	"talkabout/internal/repository/postgres"
+	"talkabout/internal/service"
 )
 
 func main() {

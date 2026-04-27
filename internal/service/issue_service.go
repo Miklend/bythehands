@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"taalkbout/internal/domain/issue"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/issue"
+	"talkabout/internal/repository"
 )
 
 type IssueService struct {

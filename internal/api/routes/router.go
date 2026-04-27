@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"taalkbout/internal/api/handlers"
-	apimw "taalkbout/internal/api/middleware"
-	"taalkbout/internal/service"
+	"talkabout/internal/api/handlers"
+	apimw "talkabout/internal/api/middleware"
+	"talkabout/internal/service"
 )
 
 type Services struct {

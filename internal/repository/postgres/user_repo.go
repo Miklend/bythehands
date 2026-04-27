@@ -5,8 +5,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"taalkbout/internal/domain/user"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/user"
+	"talkabout/internal/repository"
 )
 
 type UserRepo struct {

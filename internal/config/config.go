@@ -56,7 +56,7 @@ func Load() (Config, error) {
 	cfg.Auth.JWTSecret = getEnv("JWT_SECRET", "dev_secret")
 
 	cfg.Bot.TelegramToken = getEnv("TELEGRAM_BOT_TOKEN", "")
-	cfg.Bot.APIBaseURL = getEnv("API_BASE_URL", "http://taalkbout-api:8080")
+	cfg.Bot.APIBaseURL = getEnv("API_BASE_URL", "http://talkabout-api:8080")
 
 	httpTimeout, err := time.ParseDuration(getEnv("BOT_HTTP_TIMEOUT", "10s"))
 	if err != nil {

@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"taalkbout/internal/domain/user"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/user"
+	"talkabout/internal/repository"
 )
 
 type UserService struct {

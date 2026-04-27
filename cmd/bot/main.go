@@ -11,11 +11,11 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"taalkbout/internal/bot/client"
-	"taalkbout/internal/bot/handlers"
-	"taalkbout/internal/bot/telegram"
-	"taalkbout/internal/config"
-	"taalkbout/internal/logger"
+	"talkabout/internal/bot/client"
+	"talkabout/internal/bot/handlers"
+	"talkabout/internal/bot/telegram"
+	"talkabout/internal/config"
+	"talkabout/internal/logger"
 )
 
 func main() {

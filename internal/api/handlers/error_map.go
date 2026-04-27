@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"taalkbout/internal/repository"
-	"taalkbout/internal/service"
+	"talkabout/internal/repository"
+	"talkabout/internal/service"
 )
 
 func DefaultErrorMapper(err error) (int, string, string) {

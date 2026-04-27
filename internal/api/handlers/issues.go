@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"taalkbout/internal/domain/issue"
-	"taalkbout/internal/service"
+	"talkabout/internal/domain/issue"
+	"talkabout/internal/service"
 )
 
 type IssuesHandler struct {

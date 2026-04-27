@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"taalkbout/internal/domain/conversation"
-	"taalkbout/internal/domain/issue"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/conversation"
+	"talkabout/internal/domain/issue"
+	"talkabout/internal/repository"
 )
 
 type ConversationService struct {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"taalkbout/internal/domain/conversation"
-	"taalkbout/internal/domain/issue"
-	"taalkbout/internal/domain/pair"
-	"taalkbout/internal/domain/user"
+	"talkabout/internal/domain/conversation"
+	"talkabout/internal/domain/issue"
+	"talkabout/internal/domain/pair"
+	"talkabout/internal/domain/user"
 )
 
 type UserRepository interface {

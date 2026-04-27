@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"taalkbout/internal/domain/issue"
-	"taalkbout/internal/domain/pair"
-	"taalkbout/internal/domain/user"
-	"taalkbout/internal/repository"
+	"talkabout/internal/domain/issue"
+	"talkabout/internal/domain/pair"
+	"talkabout/internal/domain/user"
+	"talkabout/internal/repository"
 )
 
 type fakeIssueRepo struct {

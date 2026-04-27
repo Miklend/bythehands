@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"taalkbout/internal/api/handlers"
+	"talkabout/internal/api/handlers"
 )
 
 func Recoverer(log *slog.Logger) func(next http.Handler) http.Handler {

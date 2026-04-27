@@ -3,7 +3,7 @@ package handlers
 import (
 	"sync"
 
-	"taalkbout/internal/bot/client"
+	"talkabout/internal/bot/client"
 )
 
 type State struct {

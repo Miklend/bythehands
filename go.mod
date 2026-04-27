@@ -1,4 +1,4 @@
-module taalkbout
+module talkabout
 
 go 1.24.0
 

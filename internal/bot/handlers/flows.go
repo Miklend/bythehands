@@ -9,7 +9,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"taalkbout/internal/bot/client"
+	"talkabout/internal/bot/client"
 )
 
 func (a *App) handleStart(ctx context.Context, sess *Session, chatID int64, startArg string) {

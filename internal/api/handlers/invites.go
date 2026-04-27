@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"taalkbout/internal/service"
+	"talkabout/internal/service"
 )
 
 type InvitesHandler struct {
