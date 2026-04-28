@@ -71,7 +71,7 @@ func main() {
 	go func() {
 		log.Info("api listening", slog.String("addr", srv.Addr))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("server error", slog.Any("err", err))
+			log.Error("server error ", slog.Any("err", err))
 			os.Exit(1)
 		}
 	}()
