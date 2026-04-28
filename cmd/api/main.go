@@ -8,14 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
 	"talkabout/internal/api/routes"
 	"talkabout/internal/config"
 	"talkabout/internal/database"
 	"talkabout/internal/logger"
 	"talkabout/internal/repository/postgres"
 	"talkabout/internal/service"
+	"time"
 )
 
 func main() {
